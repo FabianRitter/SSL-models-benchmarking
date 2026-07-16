@@ -102,7 +102,7 @@ if [[ "$STAGE" == "all" || "$STAGE" == "evaluate" ]]; then
   else
     PER="$(grep -E 'test per:' "$EVAL_LOG" | tail -n1 | sed -E 's/.*test per:[[:space:]]*//' | awk '{print $1}' || true)"
     [[ -n "$PER" ]] || { echo "ERROR: could not find 'test per:' in $EVAL_LOG" >&2; exit 1; }
-    PER_PCT="$(python3 -c "print(f'{float('$PER')*100:.2f}')" 2>/dev/null || echo '?')"
+    PER_PCT="$(awk -v v="$PER" 'BEGIN{printf "%.2f", v*100}' 2>/dev/null || echo '?')"
     echo "PR test PER = ${PER} (fraction) = ${PER_PCT}% | exp=${EXP_NAME} | logs: ${EVAL_LOG}"
     echo "RESULT superb pr per=${PER}"
   fi

@@ -72,6 +72,88 @@ Table I). WavLM Base = 4.84 %, WavLM Large = 3.06 %.
 > reduced `num_workers` are smoke-only knobs; the full-run command above sets
 > none of them (full test set, config-default workers).
 
+## ASR — Automatic Speech Recognition
+
+**What it measures.** Frame-level acoustic modelling: the frozen WavLM features are
+weighted-summed (learnable) and fed to a 2-layer BiLSTM + CTC head that transcribes speech
+to characters. The reported metric is **Word Error Rate (WER, lower is better)** on
+LibriSpeech `test-clean`, decoded **without any language model** (greedy CTC). This is the
+"no-LM" ASR row of the WavLM/SUPERB tables; adding a 4-gram/Transformer LM would lower WER by
+a couple of points but is intentionally out of scope here.
+
+**Dataset.** [LibriSpeech](https://www.openslr.org/12/) — public, no gating. The recipe uses
+`train-clean-100` (training), `dev-clean` (checkpoint selection) and `test-clean` (scoring).
+Download `train-clean-100.tar.gz`, `dev-clean.tar.gz` and `test-clean.tar.gz` from openslr.org/12
+and extract them so the root contains `train-clean-100/`, `dev-clean/`, `test-clean/`. Point
+`--data-root` at that root (its path must contain the string `LibriSpeech`, which the standard
+archive layout already satisfies).
+
+**Run it (one command):**
+
+```bash
+bash scripts/superb/run_wavlm_asr.sh --data-root /path/to/LibriSpeech \
+     --exp-name wavlm_base_plus_asr_full
+```
+
+`--stage all` (default) runs three sub-steps in order:
+1. **prep** — one-off `preprocess/generate_len_for_bucket.py` over `train-clean-100`,
+   `dev-clean`, `test-clean`, producing the length-bucket table
+   `data/librispeech/len_for_bucket/*.csv` that the dataloader buckets on. Auto-skipped if the
+   three CSVs already exist. CPU-only, ~1–2 min with `PREP_NJOBS=12`.
+2. **train** — `run_downstream.py -m train -u wavlm_base_plus -d asr` (frozen upstream,
+   learnable weighted-sum; SpecAugment on; Adam lr 1e-4; 200 000 steps; batch 32).
+3. **evaluate** — scores `dev-clean-best.ckpt` on `test-clean` (**no LM**) and prints the WER.
+
+Re-run a single phase with `--stage prep|train|evaluate`. Other flags: `--upstream`, `--gpu`,
+`--extra-override` (verbatim s3prl `-o`, `,,`-separated), `--dry-run`.
+
+**How to read the output.** The evaluate step prints (from `downstream/asr/expert.py`):
+
+```
+test-clean uer: <fraction>
+test-clean wer: <fraction>
+```
+
+and the wrapper appends a final machine-readable line:
+
+```
+RESULT superb asr wer=<percent>       # e.g. 5.59  ==  5.59 %
+```
+
+WER is emitted **as a percentage** (0–100, computed as `100 * word_errors / words` in
+`downstream/asr/expert.py:_compute_metrics`) — report it directly, no scaling. Artifacts land in
+`external/s3prl/s3prl/result/downstream/<exp-name>/` (checkpoints, `test-clean-noLM-hyp.ark` /
+`-ref.ark`, tensorboard). Wrapper logs are under `logs/superb/asr/<exp-name>_{prep,train,eval}.log`.
+Note the selection checkpoint is **`dev-clean-best.ckpt`** (the runner selects on `dev-clean`),
+not `dev-best.ckpt`.
+
+**Expected resources (1×H100).** ~20–30 GB VRAM. Training throughput measured at **~0.2 s/step**
+on a lightly-loaded H100 and **~0.45 s/step** under contention from sibling jobs (frozen Base+,
+batch 32). The full 200 000-step run has two comparable cost centres: training itself (~12–25 h)
+and the periodic **full** `dev-clean` evaluations (default `eval_step=2000` ⇒ 100 evals × ~2 700
+utts at `eval_batch_size=1`, another ~8–30 h depending on contention). Budget **~1.5–3 days**
+wall-clock end-to-end. Suggested scheduler walltime: **96 h**.
+
+**Reference (WavLM paper, Table I — arXiv:2110.13900).** WavLM Base+ ASR **WER 5.59 %** (no LM)
+on `test-clean` — i.e. the wrapper prints `RESULT superb asr wer=5.59`. (Base 6.21 %, Large
+3.44 %.) The public SUPERB leaderboard may differ by small amounts.
+
+### Executed runs
+
+| Date | Command (abridged) | Steps | Metric | Label |
+|---|---|---|---|---|
+| 2026-07-17 | `run_wavlm_asr.sh --stage all --extra-override total_steps=1000,,eval_step=500,,save_step=500,,log_step=100,,evaluate_ratio=0.1` | 1000 | `wer=27.66` (test-clean, 262-utt subset, no LM) | **SMOKE** |
+
+> **SMOKE** = pipeline sanity only (1 000 steps; `evaluate_ratio=0.1` scores ~10 % of each split
+> to keep the sanity run short). This 27.66 % WER is **not** a benchmark result — it only confirms
+> the head is learning (dev-clean WER fell 40.3 % → 27.2 % across the two in-training evals) and
+> that prep → train → `dev-clean-best.ckpt` → evaluate → `RESULT` runs end-to-end. Measured ~5 min
+> wall on 1×H100. The real number goes in `results/RESULTS.md` after the 200 000-step run.
+>
+> **Gotcha for tiny smokes:** `downstream/asr/expert.py` initialises `best_score = 100` and saves
+> `dev-clean-best.ckpt` only when dev WER `< 100`. A ≤100-step model outputs *exactly* 100.0 % WER,
+> so the checkpoint is never written and the evaluate stage has nothing to score. Use **≥ ~500
+> steps** (and enough that dev WER drops below 100) for a self-checking smoke.
 
 ## KS — Keyword Spotting
 
@@ -480,6 +562,140 @@ trains → evaluates → prints `RESULT superb ic acc=` end-to-end. The 6.35 % a
 not-yet-trained pipeline check, **not** a benchmark number. Wall time was 92 s including
 evaluation, on an H100 shared with sibling smoke jobs.
 
+## SF — End-to-end Slot Filling
+
+**What it measures.** SF probes how much *semantic* content a frozen SSL
+representation exposes. The learnable weighted-sum over frozen WavLM hidden
+states feeds a 2-layer BiLSTM + CTC head (`-d ctc -c downstream/ctc/snips.yaml`,
+`character-slot` text mode) that transcribes speech into a character sequence
+with **inline slot markers** (IOB-style `B-<slot> … E-<slot>` tokens around each
+slot value). Two numbers are reported, both from the SUPERB tables:
+
+- **slot-type F1** (`slot_type_f1`, *higher is better*) — did the model predict
+  the right set of slot *types*?
+- **slot-value CER** (`slot_value_cer`, *lower is better*) — character error rate
+  of the predicted slot *values* against the reference values.
+
+Checkpoint selection during training is on **slot-type F1** on the dev split
+(the first metric in the config, `metric_higher_better: True`), saved as
+`dev-best.ckpt`.
+
+**Dataset.** Audio SNIPS (the SNIPS SLU commands re-synthesised as speech across
+multiple TTS speaker voices). The `snips.yaml` recipe bakes in fixed train / dev
+/ test **speaker** splits (train: Ivy, Joanna, Joey, Justin, Kendra, Kimberly,
+Matthew, Salli; dev: Aditi, Amy, Geraint, Nicole; test: Brian, Emma, Raveena,
+Russell). Two acquisition paths:
+
+1. **Preprocessed zip (recommended, no mp3 tooling needed).** Download the
+   ready-to-use Audio SNIPS from the s3prl-provided Google Drive and unzip:
+   <https://drive.google.com/file/d/1oBRZd-PaCKz5iY3eZkXs5OB_ZZ4w7bbG/view>
+   (file id `1oBRZd-PaCKz5iY3eZkXs5OB_ZZ4w7bbG`; ~11 GB zip). E.g. with
+   [`gdown`](https://github.com/wkentaro/gdown):
+   ```bash
+   pip install gdown
+   gdown 1oBRZd-PaCKz5iY3eZkXs5OB_ZZ4w7bbG -O snips.zip && unzip snips.zip
+   ```
+   The unzipped **`SNIPS/`** directory is your `--data-root`. It contains
+   `all.iob.snips.txt` (IOB-tagged transcripts used by `character-slot` mode),
+   `all-trans.txt` (plain transcripts), `slots.txt` (the slot-label inventory),
+   and the `train/ valid/ test/` sub-directories of `*.wav` files (speaker-named,
+   e.g. `Ivy-….wav`). A `LICENSE` file is included in the archive.
+
+2. **Regenerate from the official release (optional, needs mp3 support).** The
+   original [aws-samples/aws-lex-noisy-spoken-language-understanding](https://github.com/aws-samples/aws-lex-noisy-spoken-language-understanding)
+   ships audio as **mp3**, so `sox` needs the mp3 handler
+   (`apt-get install libsox-fmt-mp3`, or `yum install soxr sox-plugins-freeworld`).
+   Then `./preprocess/snips_prepare_data.sh $CORPORA_DIR` (in the s3prl checkout)
+   converts to wav and lays out the same directory structure. The preprocessed
+   zip in path (1) exists precisely so most users can skip this.
+
+**Run it (one command):**
+
+```bash
+bash scripts/superb/run_wavlm_sf.sh --data-root /path/to/SNIPS \
+     --exp-name wavlm_base_plus_sf_full
+```
+
+`--stage all` (default) trains (`-d ctc -c downstream/ctc/snips.yaml`, frozen
+upstream + learnable weighted-sum, Adam lr 1e-4, 200 000 steps, batch 32) then
+evaluates `dev-best.ckpt` on the test split and prints both metrics. The `ctc`
+recipe is shared by PR / SF / OOD-ASR and is specialised to SF purely by
+`snips.yaml`. The wrapper sets both required overrides for you:
+`config.downstream_expert.corpus.path=<data-root>` and
+`config.downstream_expert.text.slots_file=<data-root>/slots.txt` (override the
+latter with `SF_SLOTS_FILE=` if your slots file lives elsewhere). Other flags:
+`--upstream` (default `wavlm_base_plus`), `--gpu`, `--stage all|train|evaluate`,
+`--extra-override` (verbatim s3prl `-o`, `,,`-separated), `--dry-run`.
+
+**How to read the output.** The evaluate stage prints, from
+`downstream/ctc/expert.py`:
+
+```
+test slot_type_f1: <fraction>
+test slot_value_cer: <fraction>
+```
+
+(plus `slot_value_wer`, `slot_edit_f1_full/part`, `wer`, `cer` — not the reported
+pair). The wrapper greps the two headline metrics and appends:
+
+```
+RESULT superb sf slot_type_f1=<fraction>     # e.g. 0.9058  == 90.58 %
+RESULT superb sf slot_value_cer=<fraction>   # e.g. 0.2120  == 21.20 %
+```
+
+**Both values are fractions — multiply by 100** for the percentages cited in the
+papers. Artifacts land in `external/s3prl/s3prl/result/downstream/<exp-name>/`
+(`dev-best.ckpt`, `config_*.yaml`, `{dev,test}-hyp.ark` / `-ref.ark`); wrapper
+logs go to `logs/superb/sf/<exp-name>_{train,eval}.log`.
+
+**Expected resources (1×H100).** `snips.yaml` defaults: `total_steps=200000`,
+`batch_size=32`, LSTM+CTC head, frozen Base+ (~20 GB VRAM, R1 estimate — not
+separately profiled here). **Smoke-measured throughput:** ~10 optimiser steps/s
+during training and ~55 it/s during evaluation on a lightly-loaded H100 (the
+SNIPS buckets are sorted longest-first, so the measured steps sit near the *slow*
+end). At ~10 steps/s the full 200 000-step run is on the order of **~6–10 h**
+pure training plus the periodic full-dev evaluations (every 2 000 steps) — i.e.
+**materially faster than R1's initial heuristic of 1.5–3 days**. Recommended PBS
+walltime **24:00:00** (generous headroom for sequence-length variation, eval
+overhead, and shared-GPU slowdown).
+
+**Reference (WavLM paper, Table I — arXiv:2110.13900).** WavLM Base+ SF
+**slot_type_f1 90.58 / slot_value_cer 21.20 %**. (Base 89.38 / 22.86; Large
+92.21 / 18.36.) The public SUPERB leaderboard may differ by small amounts.
+
+**Verification status.** **SMOKE-verified end-to-end** on this hardware
+(2026-07-17). A reduced 3 000-step run of the *exact* wrapper (`--stage all`)
+completed train → auto-saved `dev-best.ckpt` → evaluate → both `RESULT` lines
+with no manual intervention, and the model was visibly learning (dev
+`slot_type_f1` climbed 0.21 → 0.72 across five dev evals). The data path
+(Google-Drive zip → `--data-root`), both `-o` overrides, checkpoint selection,
+and the two-metric extraction are all confirmed against real data. The full
+200 000-step benchmark run is left to the end user.
+
+> **Short-run gotcha (worth knowing).** `dev-best.ckpt` is only written when the
+> dev `slot_type_f1` *exceeds* the initial best score of `0` (`ctc/expert.py`
+> initialises `best_score=0` for higher-is-better metrics). A very short run
+> (e.g. ≤200 steps) can leave the model predicting no slots at all, so
+> `slot_type_f1` stays `0.0`, no `dev-best.ckpt` is saved, and the evaluate stage
+> errors with *"checkpoint not found: …/dev-best.ckpt"*. This is expected for a
+> too-short run, **not** a bug — give it enough steps to start predicting slots
+> (a few hundred to a couple thousand here) and `dev-best.ckpt` appears. The full
+> recipe (200 000 steps) is unaffected.
+
+### Executed runs
+
+| Date (UTC+8) | Upstream | Command (shrink override) | Result | Label |
+|---|---|---|---|---|
+| 2026-07-17 | wavlm_base_plus | `run_wavlm_sf.sh --exp-name smoke_sf_e2e --extra-override "config.runner.total_steps=3000,,config.runner.eval_step=600,,config.runner.save_step=600,,config.runner.log_step=100,,config.runner.evaluate_ratio=0.3"` | test `slot_type_f1=0.6868` (**68.68 %**) / `slot_value_cer=0.5507` (**55.07 %**) | **SMOKE** |
+
+> **SMOKE** = 3 000 of 200 000 steps (1.5 %) with dev evaluated on a 30 % subset
+> (`evaluate_ratio=0.3`) — a full end-to-end pipeline check, **not** a benchmark
+> number. It proves the wrapper runs train → auto `dev-best.ckpt` → evaluate →
+> both `RESULT superb sf …` lines. Wall time **7m25s** on a lightly-loaded H100.
+> The metrics are already moving the right way (F1 68.68 % vs the 90.58 %
+> reference, CER 55.07 % vs 21.20 %) but need the full 200 000-step run to be
+> comparable. `evaluate_ratio` is a smoke-only knob; the full-run command above
+> sets none of the shrink overrides.
 
 ## ER — Emotion Recognition (IEMOCAP, 5-fold)
 
@@ -560,4 +776,3 @@ number (chance on 4 balanced classes ≈ 25 %; it already clears chance after 20
 confirming the head learns). Wall time was **~14 min 33 s** (start 06:10:48 → end 06:25:21)
 including WavLM download reuse, data preload, 200 training steps and the separate evaluate
 pass, on an H100 shared with four sibling smoke jobs.
-
