@@ -1,0 +1,10 @@
+[submodule "external/s3prl"]
+	path = external/s3prl
+	url = https://github.com/FabianRitter/s3prl.git
+	branch = main
+	shallow = true
+[submodule "external/espnet"]
+	path = external/espnet
+	url = https://github.com/FabianRitter/espnet.git
+	branch = master
+	shallow = true
