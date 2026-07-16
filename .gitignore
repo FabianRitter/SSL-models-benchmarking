@@ -1,0 +1,28 @@
+# --- Logs & run artifacts ---------------------------------------------------
+logs/
+runs/
+exp/
+dump/
+results/raw/
+
+# --- Model / checkpoint artifacts -------------------------------------------
+*.ckpt
+*.pt
+*.pth
+
+# --- Caches -----------------------------------------------------------------
+cache/
+.cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# --- Cluster-local, never published -----------------------------------------
+# (lives outside this repo, but ignored defensively in case it is copied in)
+workspace_env.sh
+
+# --- OS / editor ------------------------------------------------------------
+.DS_Store
+*.swp
+*~
