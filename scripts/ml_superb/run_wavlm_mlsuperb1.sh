@@ -89,9 +89,10 @@ if [[ "$MODE" == "mono" ]]; then
     *) echo "ERROR: --lang '$LANG_SEL' not one of: $VALID_LANGS" >&2; exit 2;;
   esac
   if [[ "$LANG_SEL" == "cmn" || "$LANG_SEL" == "jpn" ]]; then
-    echo "WARNING: '$LANG_SEL' is officially scored as PER (word/g2p tokens) by ./run_mono.sh." >&2
-    echo "         This single-language path uses char tokens (CER); for the official cmn/jpn" >&2
-    echo "         PER, run ./run_mono.sh in the recipe directly." >&2
+    echo "WARNING: '$LANG_SEL' is scored as PER via word/g2p tokens (matching ./run_mono.sh)." >&2
+    echo "         This needs the g2p deps installed in the env (jpn: pyopenjtalk — data.sh" >&2
+    echo "         auto-installs it; cmn: pypinyin — 'pip install pypinyin'). Result lands in" >&2
+    echo "         score_wer/ (PER), not score_cer/." >&2
   fi
   LANG_TAG="_${LANG_SEL}"; LANG_DESC="lang=$LANG_SEL"
 fi
@@ -157,15 +158,43 @@ if [[ "$MODE" == "multi" ]]; then
         --duration "$DURATION" --lid false --only_lid false
         --asr_config "$ASR_CONFIG" )
 else
-  # Monolingual single-language via run.sh. '--lid false --only_lid false' is REQUIRED:
-  # run.sh defaults only_lid=true, which makes stage-13 local/score.sh attempt LID scoring
-  # and abort on a monolingual (no [iso] tag) reference. Forcing them false selects the
-  # CER path (score_type=normal, all utts -> "trained" few-shot bucket).
-  CMD=( ./run.sh
+  # Monolingual single-language.
+  # IMPORTANT: we do NOT use './run.sh --single_lang ...'. The recipe's run.sh EXECUTES
+  # ('./utils/parse_options.sh') instead of SOURCING ('. utils/parse_options.sh') the option
+  # parser, so run.sh IGNORES all CLI flags and always runs its LID-multilingual-fbank
+  # defaults (verified empirically). run_multi.sh sources it (so the multi branch above is
+  # flag-driven and correct), but run_mono.sh also executes it and instead drives asr.sh
+  # directly, per-language, inside a loop. We therefore replicate run_mono.sh's exact
+  # single-language ./asr.sh invocation here (source-faithful; NO espnet edit).
+  #  - dev/test sets are ALWAYS the fixed 10min utterances (run_mono hardcodes dev_10min/
+  #    test_10min even for the 1h track); only train_set carries the duration.
+  #  - score_type is 'monolingual'; CPU decode (gpu_inference=false) as in run_mono.
+  if [[ "$LANG_SEL" == "cmn" || "$LANG_SEL" == "jpn" ]]; then TOKEN_TYPE=word; else TOKEN_TYPE=char; fi
+  MONO_TRAIN="train_${DURATION}_${LANG_SEL}"
+  MONO_DEV="dev_10min_${LANG_SEL}"
+  MONO_TEST="dev_10min_${LANG_SEL} test_10min_${LANG_SEL}"
+  MONO_TAG="$(basename "$ASR_CONFIG" .yaml)_${LANG_SEL}_${DURATION}"
+  MONO_DATA_OPTS="--duration ${DURATION} --lid false --multilingual false --single_lang ${LANG_SEL}"
+  CMD=( ./asr.sh
+        --ngpu 1
         --stage "$STAGE" --stop_stage "$STOP_STAGE"
-        --multilingual false --single_lang "$LANG_SEL" --duration "$DURATION"
-        --lid false --only_lid false
-        --asr_config "$ASR_CONFIG" )
+        --nj 16 --inference_nj 16 --gpu_inference false
+        --lang "$LANG_SEL"
+        --inference_asr_model valid.loss.ave.pth
+        --local_data_opts "$MONO_DATA_OPTS"
+        --use_lm false
+        --token_type "$TOKEN_TYPE"
+        --feats_type raw
+        --feats_normalize utterance_mvn
+        --asr_config "$ASR_CONFIG"
+        --inference_config conf/decode_asr.yaml
+        --train_set "$MONO_TRAIN"
+        --valid_set "$MONO_DEV"
+        --test_sets "$MONO_TEST"
+        --asr_tag "$MONO_TAG"
+        --expdir exp
+        --asr_stats_dir "exp/asr_stats_${LANG_SEL}_${DURATION}"
+        --local_score_opts "false false monolingual" )
 fi
 
 echo "+ (cd $RECIPE_DIR && ${CMD[*]})"
@@ -183,7 +212,10 @@ if [[ "$MODE" == "multi" ]]; then
   echo "Scores: $RECIPE_DIR/exp/${TAG}_multilingual_${DURATION}/RESULTS.md"
   echo "        CER (few-shot split): decode_*/*/score_cer/few_shot/{trained,reserved}/result.txt"
 else
+  # dev/test are ALWAYS the fixed 10min sets (see mono branch). cmn/jpn use word tokens
+  # -> score_wer/ (PER); every other language uses char tokens -> score_cer/ (CER).
+  SCORE_SUBDIR=score_cer; [[ "$TOKEN_TYPE" == "word" ]] && SCORE_SUBDIR=score_wer
   echo "Scores: $RECIPE_DIR/exp/${TAG}_${LANG_SEL}_${DURATION}/"
-  echo "        decode_asr_asr_model_valid.loss.ave.pth/test_${DURATION}_${LANG_SEL}/score_cer/result.txt"
+  echo "        decode_asr_asr_model_valid.loss.ave.pth/test_10min_${LANG_SEL}/${SCORE_SUBDIR}/result.txt"
 fi
 echo "RESULT ml_superb1 $TRACK log=$LOG"
