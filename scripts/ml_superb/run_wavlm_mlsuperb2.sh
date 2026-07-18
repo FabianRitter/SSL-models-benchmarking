@@ -20,8 +20,16 @@
 #   --stage N           ESPnet start stage (default: 1; stage 1 does the HF download).
 #   --stop-stage N      ESPnet stop stage  (default: 13).
 #   --gpu IDS           CUDA_VISIBLE_DEVICES value (default: 0).
+#   --asr-args "STR"    Extra args forwarded to ESPnet asr training (asr.sh --asr_args),
+#                       e.g. --asr-args "--max_epoch 2 --num_iters_per_epoch 2000" to
+#                       cap a SMOKE run. NOTE: a non-empty value changes the exp/ tag
+#                       (asr.sh appends a sanitised copy of the args to asr_tag).
 #   --exp-suffix S      Provenance tag appended to the wrapper log filename.
 #   --dry-run           Print the exact recipe command without executing.
+#   -- ARGS...          Everything after a literal '--' is forwarded verbatim to the
+#                       recipe run.sh -> asr.sh (last-wins), e.g. '-- --inference_nj 8'
+#                       to cap single-GPU decode parallelism (recipe default is 64,
+#                       which OOMs one GPU with run.pl local backend).
 # Env overrides:
 #   ESPNET_ROOT           ESPnet checkout (default: <repo>/external/espnet).
 #   SSL_BENCH_ESPNET_ENV  conda env name/path (default: ssl-bench-espnet).
@@ -34,14 +42,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 ASR_CONFIG="conf/tuning/train_wavlm_baseline.yaml"
-STAGE=1; STOP_STAGE=13; GPU="${CUDA_VISIBLE_DEVICES:-0}"; EXP_SUFFIX=""; DRY_RUN=0
+STAGE=1; STOP_STAGE=13; GPU="${CUDA_VISIBLE_DEVICES:-0}"; EXP_SUFFIX=""; DRY_RUN=0; ASR_ARGS=""
+PASSTHRU=()
 while [[ $# -gt 0 ]]; do case "$1" in
   --asr-config) ASR_CONFIG="$2"; shift 2;;
   --stage)      STAGE="$2"; shift 2;;
   --stop-stage) STOP_STAGE="$2"; shift 2;;
   --gpu)        GPU="$2"; shift 2;;
+  --asr-args)   ASR_ARGS="$2"; shift 2;;
   --exp-suffix) EXP_SUFFIX="$2"; shift 2;;
-  -h|--help)    sed -n '2,32p' "$0"; exit 0;;
+  --)           shift; PASSTHRU=("$@"); break;;
+  -h|--help)    sed -n '2,37p' "$0"; exit 0;;
   --dry-run)    DRY_RUN=1; shift;;
   *) echo "unknown option: $1" >&2; exit 2;; esac; done
 
@@ -79,7 +90,11 @@ echo "==========================================================================
 # run.sh forwards "$@" to asr.sh; a later --asr_config overrides run.sh's built-in
 # default (conf/train_asr.yaml = the MMS-1B baseline). ESPnet parse_options is
 # last-wins, so our WavLM config takes effect. --stage/--stop_stage also flow through.
+# --asr_args (if set) is forwarded to asr.sh, which appends it to the asr_train
+# invocation (used to cap epochs for a SMOKE run).
 CMD=( ./run.sh --asr_config "$ASR_CONFIG" --stage "$STAGE" --stop_stage "$STOP_STAGE" )
+[[ -n "$ASR_ARGS" ]] && CMD+=( --asr_args "$ASR_ARGS" )
+[[ ${#PASSTHRU[@]} -gt 0 ]] && CMD+=( "${PASSTHRU[@]}" )
 
 echo "+ (cd $RECIPE_DIR && ${CMD[*]})"
 if [[ $DRY_RUN -eq 1 ]]; then
