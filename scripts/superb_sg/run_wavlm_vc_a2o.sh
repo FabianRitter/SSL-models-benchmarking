@@ -73,10 +73,21 @@ cd "$S3PRL_ROOT/s3prl"
 run() { echo "+ $*"; [[ $DRY_RUN -eq 1 ]] || "$@"; }
 
 # ---- vocoder: download the pretrained PWG/HiFi-GAN vocoders (gdown-based) ----
+# The recipe's downstream/a2o-vc-vcc2020/vocoder_download.sh uses the legacy
+# `gdown --id <ID>` form, which gdown>=5 removed (now positional-only) — it fails
+# silently and leaves empty vocoder dirs. We fetch the same public artifacts with
+# gdown's current syntax so this stage works regardless of the installed gdown
+# version. Downloads pwg_task1/, pwg_task2/, hifigan_vctk+vcc2020/ into voc_parent.
 do_vocoder() {
   local voc_parent; voc_parent="$(dirname "$VOCODER_DIR")"
-  echo "# downloads pwg_task1/ pwg_task2/ hifigan_vctk+vcc2020/ into ${voc_parent} (needs gdown + network)"
-  run bash -c "./downstream/a2o-vc-vcc2020/vocoder_download.sh '${voc_parent}'"
+  local names=(pwg_task1 pwg_task2 "hifigan_vctk+vcc2020")
+  local ids=(11KKux-du6fvsMMB4jNk9YH23YUJjRcDV 1li9DLZGnAheWZrB4oXGo0KWq-fHuFH_l 136tzvhczhHQ4sbaaJUU8UKjkCaca0ub6)
+  echo "# downloads ${names[*]} into ${voc_parent} (needs gdown + network)"
+  local i
+  for i in "${!names[@]}"; do
+    local d="${voc_parent}/${names[$i]}"
+    run bash -c "set -o pipefail; mkdir -p '${d}'; tmp=\$(mktemp '${d}/XXXXXX.tar.gz'); gdown '${ids[$i]}' -O \"\$tmp\"; tar xzf \"\$tmp\" -C '${d}'; rm -f \"\$tmp\""
+  done
 }
 
 # ---- train: one model per target speaker ----
