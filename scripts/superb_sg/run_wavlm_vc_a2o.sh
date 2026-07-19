@@ -32,8 +32,9 @@
 #   Target speaker via config.downstream_expert.trgspk; data via ...datarc.data_root.
 # Metric: MCD (↓, averaged over target speakers). decode.sh prints
 #   "Mean MCD, f0RMSE, f0CORR, DDUR, CER, WER, accept rate: <mcd> ...". No dev-best
-#   checkpoint (save_names=[]); evaluate dumps features to <exp>/<step>/test/hdf5,
-#   which decode.sh vocodes and scores. Needs the VC extra deps + a vocoder download.
+#   checkpoint (save_names=[]); the runner's in-training eval dumps test features to
+#   <exp>/<step>/test/hdf5, which decode.sh vocodes and scores. Needs the VC extra
+#   deps + a vocoder download.
 # =============================================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,17 +101,21 @@ do_train() {
   done
 }
 
-# ---- evaluate: regen test features from states-<step>.ckpt, decode + score ----
+# ---- evaluate: vocode + score the in-training test-feature dump for --step ----
+# The runner's in-training evaluation (its eval_dataloaders include 'test') dumps
+# test features to result/downstream/<exp>/<step>/test/hdf5 at every eval_step, so
+# a separate `-m evaluate` pass is unnecessary — and on a busy node its fresh WavLM
+# re-extraction can stall for hours. We decode that existing dump directly, matching
+# the recipe README. --step must therefore be a step at which the in-training eval
+# ran (a multiple of config.runner.eval_step; the default 10000 / eval_step 1000 fits).
 do_evaluate() {
   local sum=0 n=0
   for spk in "${SPKS[@]}"; do
-    local exp="${EXP_NAME}_${spk}" ckpt outdir dlog mcd
-    exp="${EXP_NAME}_${spk}"
-    ckpt="result/downstream/${exp}/states-${STEP}.ckpt"
+    local exp="${EXP_NAME}_${spk}" outdir hdf5dir dlog mcd
     outdir="result/downstream/${exp}/${STEP}"
+    hdf5dir="${outdir}/test/hdf5"
     dlog="${LOG_DIR}/${exp}_decode.log"
-    [[ $DRY_RUN -eq 1 || -f "$ckpt" ]] || { echo "ERROR: checkpoint not found: $(pwd)/$ckpt (train the ${spk} model first, or set --step)" >&2; exit 2; }
-    run bash -c "set -o pipefail; python3 run_downstream.py -m evaluate -t test -e '${ckpt}' 2>&1 | tee '${LOG_DIR}/${exp}_eval.log'"
+    [[ $DRY_RUN -eq 1 || -d "$hdf5dir" ]] || { echo "ERROR: no test-feature dump at $(pwd)/${hdf5dir}. Run --stage all, or ensure config.runner.eval_step divides --step ${STEP} so the in-training eval produced it." >&2; exit 2; }
     run bash -c "set -o pipefail; ./downstream/a2o-vc-vcc2020/decode.sh '${VOCODER_DIR}' '${outdir}' '${spk}' 2>&1 | tee '${dlog}'"
     if [[ $DRY_RUN -eq 0 ]]; then
       # "Mean MCD, f0RMSE, f0CORR, DDUR, CER, WER, accept rate: <mcd> ..." — MCD is field 1 after ':'.
