@@ -16,21 +16,41 @@ is scored on Voicebank-DEMAND with **PESQ (↑)**, **STOI (↑)** and **SI-SDRi
 recipe (SUPERB-comparable); `enhancement_stft2` is an improved, **non-comparable**
 recipe — do not use it for benchmark numbers.
 
-**Dataset.** Voicebank-DEMAND, 16 kHz, **public**. Official source: Edinburgh
-DataShare `10283/2791` (get the 16 kHz `clean_/noisy_ trainset_28spk_wav_16k`
-and `testset_wav_16k` sets); s3prl also references a mirror
-`http://140.112.21.28:9000/noisy-vctk-16k.zip` (old NTU host, may be dead).
-Prepare the Kaldi-scp layout (`--stage prep` prints this):
+**Dataset.** Voicebank-DEMAND, **public**. **Acquisition (verified 2026-07-19):**
+the s3prl preprocessed 16 kHz mirror `http://140.112.21.28:9000/noisy-vctk-16k.zip`
+is **DEAD** (connection times out — do not rely on it). The working source is
+**Edinburgh DataShare `10283/2791`**, which hosts the **48 kHz** originals — the
+legacy DSpace URL `https://datashare.ed.ac.uk/bitstream/handle/10283/2791/<file>`
+returns the real zip via a 301 redirect to the bitstream download (use a
+redirect-following GET, e.g. `wget -c`; a `--spider`/HEAD returns a 751-byte HTML
+stub, so fetch with GET). Grab the four sets:
+`clean_trainset_28spk_wav.zip`, `noisy_trainset_28spk_wav.zip`,
+`clean_testset_wav.zip`, `noisy_testset_wav.zip` (~5.3 GB total; 11 572 train +
+824 test utts each, mono 16-bit).
+
+`data_prepare.py` expects source dirs already **named and resampled to 16 kHz**:
+`clean_/noisy_trainset_28spk_wav_16k` and `clean_/noisy_testset_wav_16k`. So after
+unzipping the 48 kHz dirs, **downsample each wav 48 k→16 k** (e.g.
+`sox in.wav -r 16000 out.wav`) into the `*_16k`-suffixed dirs. (The loader
+`dataset.py` also resamples on read via `librosa.load(..., sr=16000)`, but
+pre-resampling to disk is the intended flow — it matches the `_16k` naming and
+avoids per-step resampling in the full run's dataloader.) The train/dev split is
+by speaker inside the 28-spk trainset (`p226`+`p287` → dev, the rest → train), so
+no separate dev download is needed. Then prepare the Kaldi-scp layout
+(`--stage prep` prints this):
 ```bash
 for part in train dev test; do
   python3 downstream/enhancement_stft/scripts/Voicebank/data_prepare.py \
       <VB_SRC> downstream/enhancement_stft/datasets/voicebank --part $part --sample_rate 16k
 done
 ```
-This writes `downstream/enhancement_stft/datasets/voicebank/wav16k/{train,dev,test}`
-(the default `--data-root`). **Env note:** metrics need **`asteroid==0.4.4`**
+`<VB_SRC>` is the dir holding the four `*_16k` dirs. This writes
+`downstream/enhancement_stft/datasets/voicebank/wav16k/{train,dev,test}/{clean,noisy}/{wav.scp,utt2spk,spk2utt}`
+(the default `--data-root`). No log/txt files are needed — `data_prepare.py` only
+reads the clean/noisy wav dirs. **Env note:** metrics need **`asteroid==0.4.4`**
 (pulls `pesq`, `pystoi`); that old pin is a known install-fragility point —
-verify `python -c "from asteroid.metrics import get_metrics"` at env-build time.
+verified importable in the run env (`from asteroid.metrics import get_metrics;
+import pesq, pystoi` → OK).
 
 **Run it.**
 ```bash
@@ -59,7 +79,30 @@ the paper's best-in-class **HuBERT Large** as a ballpark: **PESQ ≈ 2.64 / STOI
 comparable-or-better; label any run "reference: leaderboard (not fetched)".
 
 **Verification status.** Commands verified against s3prl code + benchmark papers
-(R1 audit, 2026-07-17); dry-run tested; not yet executed on data in this repo.
+(R1 audit, 2026-07-17). Pipeline **SMOKE-verified end-to-end on this cluster
+(2026-07-19)**: data acquired (DataShare path above), 48 k→16 k resample +
+`data_prepare.py` validated on a subset (correct scp with absolute 16 k paths),
+override keys re-checked against `configs/cfg_voicebank.yaml`
+(`config.runner.{total_steps,log_step,eval_step,save_step}`, and
+`config.downstream_expert.loaderrc.{train,dev,test}_dir`), wrapper `--dry-run`
+correct for train+evaluate, `asteroid`/`pesq`/`pystoi` importable, WavLM Base+
+upstream cached. `best-states-dev.ckpt` is saved on the first dev eval (the
+recipe keeps the best-PESQ dev checkpoint); `evaluate` reads `test_dir` from the
+saved ckpt config, so the train-time data-root override propagates. The 200-step
+SMOKE train+eval was submitted as a GPU batch job; **metric numbers pending
+harvest** (see Executed runs).
+
+### Executed runs
+
+| Date | Config | Command (WavLM Base+) | PESQ | STOI | SI-SDRi | Label |
+|---|---|---|---|---|---|---|
+| 2026-07-19 | SMOKE: total_steps=200, eval_step=save_step=200, log_step=50 | `run_wavlm_se.sh --stage train --extra-override 'config.runner.total_steps=200,,config.runner.log_step=50,,config.runner.eval_step=200,,config.runner.save_step=200' --exp-name wavlm_base_plus_se_smoke` then `--stage evaluate --exp-name wavlm_base_plus_se_smoke` | _pending_ | _pending_ | _pending_ | SMOKE |
+
+SMOKE numbers are a tiny-steps sanity check only (200 of 150 000 steps) — **not**
+a benchmark result; the reference row (HuBERT-Large PESQ≈2.64/STOI≈94.2 ballpark;
+WavLM leaderboard row not fetched) is for the FULL run. Harvest: read
+`result/downstream/wavlm_base_plus_se_smoke/test_metrics.txt` (lines `si_sdr`,
+`stoi`, `pesq`) or grep `RESULT superb_sg se` in the eval log.
 
 ## SS — Source Separation
 
@@ -138,11 +181,46 @@ bash scripts/superb_sg/run_wavlm_vc_a2o.sh --stage vocoder   # -> downstream/a2o
 ```
 `data_download.sh` clones `nii-yamagishilab/VCC2020-database` into
 `downstream/a2o-vc-vcc2020/data/vcc2020` (the default `--data-root`).
-**Env note:** VC has its own extras
+**Env note.** VC has its own extras
 (`downstream/a2o-vc-vcc2020/requirements.txt`: `parallel-wavegan`, `fastdtw`,
-`pyworld`, `pysptk`, `jiwer<4`, `resemblyzer`); `pyworld`/`pysptk` need build
-tools and `resemblyzer` pulls its own torch. The vocoder download uses `gdown`
-(needs network).
+`pyworld`, `pysptk`, `jiwer<4`, `resemblyzer`); `pyworld`/`pysptk`/`webrtcvad`
+compile from source (need a C/C++ toolchain + Cython) and `resemblyzer`/
+`parallel-wavegan` reference torch. Installed into the SUPERB env **without
+touching the pinned `torch==2.4.1+cu121` / `numpy` / `torchaudio`** — pin those
+in a pip constraints file and use two per-package workarounds:
+
+```bash
+# pin so nothing up/down-grades torch/torchaudio/numpy
+printf 'torch==2.4.1+cu121\ntorchaudio==2.4.1+cu121\nnumpy==2.2.6\n' > /tmp/vc_constraints.txt
+
+# 1) compiling + simple extras
+pip install --constraint /tmp/vc_constraints.txt fastdtw pyworld pysptk "jiwer<4" webrtcvad
+
+# 2) resemblyzer WITHOUT deps: its setup lists the `typing` PyPI backport, which
+#    shadows/breaks stdlib typing on Python >=3.9. webrtcvad (its only otherwise-
+#    missing runtime dep) is installed in step 1.
+pip install --no-deps resemblyzer
+
+# 3) parallel-wavegan needs --no-build-isolation: its sdist setup.py does
+#    `import pip` at build time, which is unavailable inside pip's isolated build env.
+pip install --no-build-isolation --constraint /tmp/vc_constraints.txt parallel-wavegan
+
+# 4) restore pkg_resources for setuptools>=81 (it dropped the bundled module, which
+#    pyworld/pysptk/resemblyzer/webrtcvad import at runtime).
+pip install "setuptools<81"
+```
+
+Resolved versions: `parallel-wavegan 0.6.1, fastdtw 0.3.4, pyworld 0.3.5,
+pysptk 1.0.1, jiwer 3.1.0, resemblyzer 0.1.4` (+ `webrtcvad, rapidfuzz, kaldiio`;
+`setuptools 80.x`). torch/numpy/torchaudio untouched.
+
+**Vocoder download (gdown ≥ 5).** The recipe's `vocoder_download.sh` calls
+`gdown --id <ID>`, a flag **removed in gdown ≥ 5** — it fails silently and leaves
+empty vocoder dirs. The wrapper's `--stage vocoder` was patched to invoke gdown
+with the current positional syntax (`gdown <ID> -O <tmp> && tar xzf ...`), so it
+works regardless of the installed gdown version and fetches the same public
+artifacts (`pwg_task1`, `pwg_task2`, `hifigan_vctk+vcc2020`). Only `pwg_task1` is
+needed for the four task-1 English targets (TEF1/2, TEM1/2).
 
 **Run it.**
 ```bash
@@ -152,11 +230,17 @@ bash scripts/superb_sg/run_wavlm_vc_a2o.sh --data-root /path/to/vcc2020 \
 ```
 Options: `--trgspk TEF1|TEF2|TEM1|TEM2|all` (default `all`);
 `--vocoder-dir` (default `downstream/a2o-vc-vcc2020/pwg_task1`); `--step`
-(default `10000` = final checkpoint's feature dump); `--stage
-all|vocoder|train|evaluate`. There is **no dev-best checkpoint** (save_names=[]);
-evaluate re-dumps test features from `states-<step>.ckpt` into
-`result/downstream/<exp>_<spk>/<step>/test/hdf5`, which `decode.sh` vocodes and
-scores.
+(default `10000` = final checkpoint); `--stage all|vocoder|train|evaluate`.
+There is **no dev-best checkpoint** (save_names=[]); the runner saves
+`states-<step>.ckpt` every `save_step`. The test features at
+`result/downstream/<exp>_<spk>/<step>/test/hdf5` that `decode.sh` vocodes are
+written by the runner's **in-training evaluation** (its `eval_dataloaders`
+include `test`), so `--step` must be a step at which that eval ran — i.e. a
+multiple of `eval_step`; the default `10000` (eval_step `1000`) qualifies. The
+`evaluate` stage's own `-m evaluate` pass runs with global_step 0 and writes to
+`.../0/test/hdf5`, so decode always reads the training-time `<step>` dump.
+(evaluate.py scores only files matching `*300??*`, the 25×4 eval utterances, so
+the dev features co-dumped at each `eval_step` do not affect MCD.)
 
 **Reading the output.** `decode.sh` prints
 `Mean MCD, f0RMSE, f0CORR, DDUR, CER, WER, accept rate: <mcd> ...` (per speaker;

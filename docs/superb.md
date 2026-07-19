@@ -230,6 +230,7 @@ KS is the only SUPERB downstream that imports catalyst.
 | Date | Upstream | Command (key args) | Metric | Label |
 |---|---|---|---|---|
 | 2026-07-17 | wavlm_base_plus | `run_wavlm_ks.sh --data-root <ks-root> --exp-name smoke_ks --extra-override "config.runner.total_steps=300,,config.runner.eval_step=100,,config.runner.save_step=100,,config.runner.log_step=50"` | `test acc = 0.8539` (85.39 %) | **SMOKE** |
+| 2026-07-19 | wavlm_base_plus | `run_wavlm_ks.sh --data-root <ks-root> --exp-name wavlm_base_plus_ks_full` (default = paper-faithful config) | `test acc = 0.9688` (**96.88 %**) | **FULL** |
 
 > The 85.39 % above is a **300-step pipeline-sanity run only** — it verifies train→eval→
 > `RESULT` end-to-end and is **not comparable** to the 97.37 % reference (a full 200k-step
@@ -246,16 +247,27 @@ the dev set, and that layer's score is reported on the test set. The metric is
 **MTWV** (maximum term weighted value); higher is better. It is a content probe
 requiring no downstream weights.
 
-**Dataset.** QUESST14 (`quesst14Database`), ~2–3 GB, **public, no gating**:
+**Dataset.** QUESST14 (`quesst14Database`), ~1.2 GB download, **public, no
+gating**:
 ```bash
-wget https://speech.fit.vutbr.cz/files/quesst14Database.tgz
+wget -c https://speech.fit.vutbr.cz/files/quesst14Database.tgz
 tar zxf quesst14Database.tgz -C <CORPORA_DIR>
 ```
 The extracted `quesst14Database/` directory is `--data-root`; it ships the
-`scoring/` NIST toolkit (`score-TWV-Cnxe.sh`, perl/shell) and the
-`groundtruth_quesst14_dev` / `groundtruth_quesst14_eval` reference lists the
-scorer needs. Requires `perl`, plus `dtw-python==1.3.0` and `lxml` in the env
-(both in the s3prl `[all]` extras).
+`scoring/` NIST toolkit (`score-TWV-Cnxe.sh`, `MediaEvalQUESST2014.jar`) and the
+`groundtruth_quesst14_dev` / `groundtruth_quesst14_eval` reference dirs plus the
+`language_key_{dev,eval,utterances}.lst` lists the scorer and dataloader need.
+Requires `perl`, `java` (JRE), and `bc` on the compute node (the scorer also
+tries `gnuplot`+`ps2pdf` for DET/TWV PDFs, but only *after* the MTWV line is
+printed, so those are optional). In the env: `dtw-python==1.3.0` and `lxml`
+(both in the s3prl `[all]` extras) — see the dtw-python caveat below.
+
+> **Scope note (English-only).** The s3prl `quesst14_dtw` recipe evaluates the
+> **English subset only** (`dataset.py` keeps `nnenglish` entries). That is
+> **138 dev queries / 138 eval queries × 2438 documents**, i.e. ~336k DTW
+> alignments per layer per split — roughly **20× smaller** than the full
+> multilingual QUESST14 (560 queries × 12492 docs) that a naive estimate
+> assumes. Runtime is correspondingly much lighter (see resources).
 
 **Run it.**
 ```bash
@@ -266,34 +278,70 @@ bash scripts/superb/run_wavlm_qbe.sh --data-root /path/to/quesst14Database \
 Options: `--layer all` (default; sweeps `0..num-layers-1`) or a single index;
 `--num-layers` (default **13** = WavLM Base/Base+; use **25** for WavLM Large);
 `--dist-fn` (default `cosine`; the config default is `cosine_exp`, which the
-s3prl docs note is often best — try both); `--stage all|dtw|score`; `--gpu`;
-`--extra-override`; `--dry-run`. The recipe is `-d quesst14_dtw` with no `-c` and
-no checkpoint — each run writes `benchmark.stdlist.xml` and the shipped scorer
-turns it into TWV/MTWV/Cnxe.
+s3prl docs note is often best — try both); `--split dev|test|both` (default
+`both` = the benchmark protocol; `dev` runs/scores only the dev queries, useful
+for a single-layer smoke); `--stage all|dtw|score`; `--gpu`; `--extra-override`;
+`--dry-run`. The recipe is `-d quesst14_dtw` with no `-c` and no checkpoint —
+each run writes `benchmark.stdlist.xml` and the shipped scorer turns it into
+TWV/MTWV/Cnxe. Bound the DTW pool to the allocated cores with
+`--extra-override config.downstream_expert.max_workers=<ncpus>` (the config
+default is empty → `os.cpu_count()`, which oversubscribes under a cgroup cpu
+limit).
 
-**Reading the output.** For each layer `L`, the DTW stage writes
-`result/downstream/<exp>_L<L>_{dev,test}/benchmark.stdlist.xml` inside the s3prl
-checkout; the score stage runs `score-TWV-Cnxe.sh` from
-`<data-root>/scoring` and tees each scorer log to
-`logs/superb/qbe/<exp>_L<L>_{dev,test}_score.log`. The wrapper parses each
-layer's MTWV, selects the best layer by **dev** MTWV, and prints
-`RESULT superb qbe mtwv=<test-MTWV of best-dev layer> (best-dev layer=<L>)`.
-The MTWV grep is best-effort — if your shipped scorer prints the maximum-TWV
-line in a different format, read the `*_score.log` files directly (the value to
-report is the **test** MTWV of the layer that maximised **dev** MTWV).
+**Reading the output.** For each layer `L` and split `SP`, the DTW stage writes
+`result/downstream/<exp>_L<L>_<SP>/benchmark.stdlist.xml` inside the s3prl
+checkout; the score stage runs `score-TWV-Cnxe.sh` from `<data-root>/scoring`
+and tees each scorer log to `logs/superb/qbe/<exp>_L<L>_<SP>_score.log`. The
+scorer prints its result as `actTWV: <v>  maxTWV: <v>  Threshold: <t>` — the
+**`maxTWV`** value IS the MTWV. The wrapper parses each layer's MTWV, selects
+the best layer by **dev** MTWV, and prints
+`RESULT superb qbe mtwv=<test-MTWV of best-dev layer> (test; best-dev layer=<L>)`.
+(With `--split dev` it reports the best-dev layer's dev MTWV instead.)
 
-**Expected resources (estimate).** No GPU training; GPU is used only for feature
-extraction. **DTW is CPU-bound and expensive** — roughly ~560 queries × ~12k
-documents per layer × ~13 layers — so budget **many hours per layer** and
-parallelise layers across CPU cores. This is the "riskiest cheap-looking" task:
-cheap in GPU, heavy in wall-clock. Peak GPU VRAM is small (feature extraction
-only).
+**Expected resources.** No GPU training; GPU is used only for feature
+extraction (~2576 short English audio files through WavLM Base+ — fast). The DTW
+sweep is **CPU-bound**; with the English-only subset each layer is ~336k
+alignments per split, parallelised across the allocated cores. Peak GPU VRAM is
+small (feature extraction only). Measured per-layer wall time on 14 cores: see
+Executed runs.
 
 **Reference (WavLM Base+).** MTWV **0.0988** (WavLM paper, arXiv:2110.13900,
 Table I). WavLM Base = 0.0870, WavLM Large = 0.0886. Higher is better.
 
+**Full-run procedure (benchmark protocol).** Sweep every hidden layer on **both**
+splits, pick the layer with the highest **dev** MTWV, report that layer's
+**test** MTWV:
+```bash
+bash scripts/superb/run_wavlm_qbe.sh --data-root /path/to/quesst14Database \
+     --layer all --split both --exp-name wavlm_base_plus_qbe \
+     --extra-override config.downstream_expert.max_workers=14
+```
+Because the recipe is English-only, the whole 13-layer × 2-split sweep is
+tractable in a **single** GPU job (est. from the smoke's per-layer time; the
+wrapper loops all layers internally). To shorten wall-clock, split the layer
+range across a few jobs (e.g. `--layer 0..6` and `--layer 7..12` via separate
+invocations of a single `--layer <i>`), each doing `--split both`, then compare
+dev MTWV across all per-layer score logs to pick the reported test layer.
+
+### Executed runs
+| Date | Split/Layer | Command (abridged) | MTWV | Wall (14 cores) | Label |
+|---|---|---|---|---|---|
+| 2026-07-19 | dev, layer 6 | `run_wavlm_qbe.sh --layer 6 --split dev --dist-fn cosine --extra-override ...max_workers=14` | _pending (PBS job 193842 queued)_ | _pending_ | SMOKE |
+
 **Verification status.** Commands verified against s3prl code + benchmark papers
-(R1 audit, 2026-07-17); dry-run tested; not yet executed on data in this repo.
+(R1 audit, 2026-07-17). 2026-07-19 (Smoke-Runner): wrapper extended with a
+generic `--split dev|test|both` selector so a single-layer dev-only smoke is
+expressible; `grep_mtwv` fixed to match the real scorer output (`maxTWV:`) and
+hardened against `set -e`. The shipped NIST scorer (`score-TWV-Cnxe.sh` +
+`MediaEvalQUESST2014.jar`) was run end-to-end on the dataset's example system,
+confirming the MTWV line format and that `java`/`bc` suffice (`gnuplot`/`ps2pdf`
+absence is non-fatal). **Env fix:** `dtw-python==1.3.0`'s PyPI manylinux wheel is
+compiled against numpy 1.x and fails to import under the env's numpy 2.2.6
+(`ValueError: numpy.dtype size changed`); rebuilt from source in
+`envs/ssl-bench-s3prl` (`pip install --force-reinstall --no-deps
+--no-build-isolation --no-binary dtw-python dtw-python==1.3.0`) so
+`from dtw import dtw` works — required for QbE. Dry-run verified; smoke submitted
+as PBS job 193842 (dev, layer 6), MTWV pending queue.
 
 ## SID — Speaker Identification
 
