@@ -71,15 +71,43 @@ if [[ "$STAGE" == "all" || "$STAGE" == "train" ]]; then
   run bash -c "set -o pipefail; python3 run_downstream.py -m train -u '${UPSTREAM}' -d sv_voxceleb1 -n '${EXP_NAME}' -o '${OVERRIDE}' 2>&1 | tee '${TRAIN_LOG}'"
 fi
 
-# ---- Evaluate: test_expdir.sh loops states-*.ckpt, scores the test trials, ----
-# ---- greps test-EER, and prints the best EER across checkpoints. ----
+# ---- Evaluate: score EVERY states-*.ckpt actually present on the VoxCeleb1 ----
+# ---- test trials and report the best (lowest) EER. This mirrors the shipped ----
+# ---- downstream/sv_voxceleb1/test_expdir.sh but GLOBS the checkpoints that   ----
+# ---- exist rather than assuming the full-run save schedule                   ----
+# ---- (states-20000..200000, hardcoded in test_expdir.sh), so it also handles ----
+# ---- shortened / reduced / smoke runs whose steps fall outside that list.    ----
 if [[ "$STAGE" == "all" || "$STAGE" == "evaluate" ]]; then
   if [[ $DRY_RUN -eq 0 ]]; then
     ls "$EXPDIR"/states-*.ckpt >/dev/null 2>&1 || { echo "ERROR: no states-*.ckpt under $(pwd)/$EXPDIR (run the train stage first)" >&2; exit 2; }
   fi
-  run bash -c "set -o pipefail; ./downstream/sv_voxceleb1/test_expdir.sh '${EXPDIR}' '${DATA_ROOT}' 2>&1 | tee '${EVAL_LOG}'"
+  run bash -c '
+    set -o pipefail
+    expdir="$1"; voxceleb1="$2"; evallog="$3"
+    {
+      echo "Start testing ckpts under $expdir ..."
+      for ckpt_path in "$expdir"/states-*.ckpt; do
+        [ -f "$ckpt_path" ] || continue
+        name="$(basename "$ckpt_path" .ckpt)"          # states-<step>
+        log_dir="$expdir/$name"
+        if [ ! -f "$log_dir/log.txt" ] || [ "$(grep -c test-EER "$log_dir/log.txt" 2>/dev/null || echo 0)" -lt 1 ] || [ ! -f "$log_dir/test_predict.txt" ]; then
+          mkdir -p "$log_dir"
+          override="args.expdir=$log_dir,,config.downstream_expert.datarc.file_path=$voxceleb1"
+          echo "Evaluating $ckpt_path"
+          python3 run_downstream.py -m evaluate -e "$ckpt_path" -o "$override" > "$log_dir/log.txt" 2>&1
+        fi
+      done
+      report="$expdir/report.txt"
+      grep test-EER "$expdir"/*/log.txt | sort -nrk 2 > "$report" || true
+      cat "$report"
+      ckpt_num="$(wc -l < "$report")"
+      echo
+      echo "$ckpt_num checkpoints evaluated."
+      echo "The best checkpoint achieves EER $(tail -n 1 "$report" | cut -d " " -f 2)"
+    } 2>&1 | tee "$evallog"
+  ' _ "$EXPDIR" "$DATA_ROOT" "$EVAL_LOG"
   if [[ $DRY_RUN -eq 0 ]]; then
-    # "The best checkpoint achieves EER <val>" printed by test_expdir.sh.
+    # "The best checkpoint achieves EER <val>" printed by the eval loop above.
     # EER is reported as a fraction by sv_voxceleb1/expert.py; x100 = EER %.
     EER="$(grep -oE 'The best checkpoint achieves EER [0-9.]+([eE][+-]?[0-9]+)?' "$EVAL_LOG" | tail -1 | awk '{print $NF}')"
     [[ -n "$EER" ]] || { echo "ERROR: could not parse best EER from $EVAL_LOG (see $EXPDIR/report.txt)" >&2; exit 1; }
