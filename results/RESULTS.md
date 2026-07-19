@@ -12,11 +12,11 @@ verified. To produce real benchmark numbers, run each script with its default se
 | SUPERB | PR (Phoneme Recognition) | PER % ↓ | 8.35 % (**SMOKE** — 200 steps, 10 % of test-clean; not a benchmark) | 3.92 % (WavLM Base+, paper Table I) | logs/superb/pr/smoke_pr_eval.log |
 | SUPERB | ASR | WER % ↓ (no LM) | _pending full run_ (smoke OK: `wer=27.66` @1000 steps / 262-utt subset, **SMOKE** — not a result) | 5.59 % (WavLM Base+, no LM — arXiv:2110.13900 Tbl I) | `logs/superb/asr/wavlm_base_plus_asr_full_eval.log` |
 | SUPERB | KS | Acc % ↑ | **96.88 (FULL**, default config, 1h30m on 1×H100, 2026-07-19) | 97.37 (WavLM Base+, WavLM paper Tab. I) | logs/superb/ks/wavlm_base_plus_ks_full_eval.log |
-| SUPERB | QbE (Query-by-Example) | MTWV ↑ | SMOKE pending (dev, layer 6; PBS job 193842 queued) | 0.0988 (WavLM Base+, paper Table I) | logs/superb/qbe/wavlm_base_plus_qbe_smoke_L6_dev_score.log |
+| SUPERB | QbE (Query-by-Example) | MTWV ↑ | **SMOKE-verified** (L6 dev MTWV 0.0439, 13 min DTW + login-node scoring, 2026-07-19; full 13-layer protocol submitted) | 0.0988 (WavLM Base+, paper Table I) | logs/superb/qbe/wavlm_base_plus_qbe_smoke_L6_dev_score.log |
 | SUPERB | SID | Acc % ↑ | _pending full run_ (smoke only: acc=0.001697 / 0.17 %, **SMOKE** 100 steps — not a result) | 89.42 (WavLM Base+, WavLM paper Table I) | logs/superb/sid/smoke_sid_eval.log |
 | SUPERB | ASV (Speaker Verification) | EER % ↓ | **SMOKE-verified** (300 steps + 2-ckpt test_expdir eval loop, 2026-07-19: best EER 16.07% — pipeline proof, not a result; job 5m34s) | 4.07 % (WavLM Base+, paper Table I) | logs/superb/asv/wavlm_base_plus_asv_eval.log |
 | SUPERB | SD (Speaker Diarization) | DER % ↓ | DOCUMENTED (dry-run only; not executed) | 3.50 % (WavLM Base+, paper Table I) | logs/superb/sd/wavlm_base_plus_sd_score.log |
-| SUPERB | IC | Acc % ↑ | _pending full run_ (smoke only: acc=0.0635 / 6.35 %, **SMOKE** 300 steps — not a result) | 99.00 (WavLM Base+, WavLM paper Table I) | logs/superb/ic/smoke_ic_eval.log |
+| SUPERB | IC (Intent Classification) | Acc % ↑ | **98.79 (FULL**, default config, 3h58m on 1×H100, 2026-07-19) | 99.00 (WavLM Base+, paper Table I) | logs/superb/ic/wavlm_base_plus_ic_full_eval.log |
 | SUPERB | SF (End-to-end Slot Filling) | slot_type_f1 % ↑ | _pending full run_ (smoke OK: 68.68 % @3 000 steps, **SMOKE**) | 90.58 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | SF (End-to-end Slot Filling) | slot_value_cer % ↓ | _pending full run_ (smoke OK: 55.07 % @3 000 steps, **SMOKE**) | 21.20 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | ER | Acc % ↑ | _pending full run_ (smoke only: acc_fold1=0.4470 / 44.70 %, **SMOKE** fold1 200 steps — not a result) | 68.65 (WavLM Base+, WavLM paper Table I; 5-fold mean) | logs/superb/er/smoke_er_fold1_eval.log |
@@ -36,4 +36,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled from per-task verification reports; last update 2026-07-19 (ML-SUPERB mono10min xty FULL: CER 62.1)._
+_Assembled from per-task verification reports; last update 2026-07-19 (IC FULL 98.79; QbE smoke-verified, full submitted)._

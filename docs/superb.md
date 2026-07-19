@@ -343,6 +343,14 @@ compiled against numpy 1.x and fails to import under the env's numpy 2.2.6
 `from dtw import dtw` works — required for QbE. Dry-run verified; smoke submitted
 as PBS job 193842 (dev, layer 6), MTWV pending queue.
 
+### Executed runs
+
+| Date | Layer/split | MTWV | Label |
+|---|---|---|---|
+| 2026-07-19 | layer 6, dev | 0.0439 (actTWV 0.0432, minCnxe 0.977) | **SMOKE** (single layer; full protocol = best-dev layer of 13, reported on test; ref WavLM B+ 0.0988) |
+
+> **Scoring requires `java`** (the dataset's NIST jar) — plus optional gnuplot/ps2pdf for DET plots. On clusters where compute nodes lack java, run the DTW on GPU nodes and re-run `score-TWV-Cnxe.sh` on a login node against the produced stdlists (the wrapper prints NA rather than fabricating a value when the scorer is unavailable).
+
 ## SID — Speaker Identification
 
 **What it measures.** Whether the frozen WavLM Base+ representation linearly separates
@@ -615,6 +623,8 @@ SMOKE = a 300-step sanity run (vs. 200 000 for the full config) that proves the 
 trains → evaluates → prints `RESULT superb ic acc=` end-to-end. The 6.35 % accuracy is a
 not-yet-trained pipeline check, **not** a benchmark number. Wall time was 92 s including
 evaluation, on an H100 shared with sibling smoke jobs.
+
+| 2026-07-19 | wavlm_base_plus | `run_wavlm_ic.sh --data-root <fsc-root> --exp-name wavlm_base_plus_ic_full` (default config) | `test acc = 0.9879` (**98.79 %**) | **FULL** |
 
 ## SF — End-to-end Slot Filling
 
