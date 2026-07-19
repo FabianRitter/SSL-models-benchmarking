@@ -14,13 +14,13 @@ verified. To produce real benchmark numbers, run each script with its default se
 | SUPERB | KS | Acc % ↑ | **96.88 (FULL**, default config, 1h30m on 1×H100, 2026-07-19) | 97.37 (WavLM Base+, WavLM paper Tab. I) | logs/superb/ks/wavlm_base_plus_ks_full_eval.log |
 | SUPERB | QbE (Query-by-Example) | MTWV ↑ | SMOKE pending (dev, layer 6; PBS job 193842 queued) | 0.0988 (WavLM Base+, paper Table I) | logs/superb/qbe/wavlm_base_plus_qbe_smoke_L6_dev_score.log |
 | SUPERB | SID | Acc % ↑ | _pending full run_ (smoke only: acc=0.001697 / 0.17 %, **SMOKE** 100 steps — not a result) | 89.42 (WavLM Base+, WavLM paper Table I) | logs/superb/sid/smoke_sid_eval.log |
-| SUPERB | ASV (Speaker Verification) | EER % ↓ | DOCUMENTED (dry-run only; not executed) | 4.07 % (WavLM Base+, paper Table I) | logs/superb/asv/wavlm_base_plus_asv_eval.log |
+| SUPERB | ASV (Speaker Verification) | EER % ↓ | **SMOKE-verified** (300 steps + 2-ckpt test_expdir eval loop, 2026-07-19: best EER 16.07% — pipeline proof, not a result; job 5m34s) | 4.07 % (WavLM Base+, paper Table I) | logs/superb/asv/wavlm_base_plus_asv_eval.log |
 | SUPERB | SD (Speaker Diarization) | DER % ↓ | DOCUMENTED (dry-run only; not executed) | 3.50 % (WavLM Base+, paper Table I) | logs/superb/sd/wavlm_base_plus_sd_score.log |
 | SUPERB | IC | Acc % ↑ | _pending full run_ (smoke only: acc=0.0635 / 6.35 %, **SMOKE** 300 steps — not a result) | 99.00 (WavLM Base+, WavLM paper Table I) | logs/superb/ic/smoke_ic_eval.log |
 | SUPERB | SF (End-to-end Slot Filling) | slot_type_f1 % ↑ | _pending full run_ (smoke OK: 68.68 % @3 000 steps, **SMOKE**) | 90.58 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | SF (End-to-end Slot Filling) | slot_value_cer % ↓ | _pending full run_ (smoke OK: 55.07 % @3 000 steps, **SMOKE**) | 21.20 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | ER | Acc % ↑ | _pending full run_ (smoke only: acc_fold1=0.4470 / 44.70 %, **SMOKE** fold1 200 steps — not a result) | 68.65 (WavLM Base+, WavLM paper Table I; 5-fold mean) | logs/superb/er/smoke_er_fold1_eval.log |
-| SUPERB-SG | SE (Speech Enhancement) | PESQ ↑ / STOI ↑ / SI-SDRi ↑ | SMOKE pending (200 steps; PBS job 193847 queued) | PESQ ~2.64 / STOI ~94.2 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/se/wavlm_base_plus_se_smoke_eval.log |
+| SUPERB-SG | SE (Speech Enhancement) | PESQ ↑ / STOI ↑ / SI-SDRi ↑ | **SMOKE-verified** (200 steps, 2026-07-19: PESQ 2.08 / STOI 0.917 / SI-SDRi 7.69 — pipeline proof, not a result; job 6m47s) | PESQ ~2.64 / STOI ~94.2 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/se/wavlm_base_plus_se_smoke_eval.log |
 | SUPERB-SG | SS (Source Separation) | SI-SDRi dB ↑ | DOCUMENTED (dry-run only; not executed) | ~10.45 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/ss/wavlm_base_plus_ss_eval.log |
 | SUPERB-SG | VC a2o (Voice Conversion) | MCD dB ↓ | DOCUMENTED (dry-run only; not executed) | ~7.22 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/vc_a2o/wavlm_base_plus_vc_<spk>_decode.log |
 | SUPERB-SG | ST (Speech Translation) | BLEU ↑ | DOCUMENTED (dry-run only; not executed) | ~20.01 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/st/wavlm_base_plus_st_eval.log |
@@ -35,4 +35,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled from per-task verification reports; last update 2026-07-19 (KS FULL harvested)._
+_Assembled from per-task verification reports; last update 2026-07-19 (KS FULL, SE + ASV smokes harvested)._

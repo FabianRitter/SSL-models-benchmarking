@@ -104,6 +104,12 @@ WavLM leaderboard row not fetched) is for the FULL run. Harvest: read
 `result/downstream/wavlm_base_plus_se_smoke/test_metrics.txt` (lines `si_sdr`,
 `stoi`, `pesq`) or grep `RESULT superb_sg se` in the eval log.
 
+**Harvested smoke result (2026-07-19):**
+
+| Date | Upstream | Command (key args) | Metric | Label |
+|---|---|---|---|---|
+| 2026-07-19 | wavlm_base_plus | `run_wavlm_se.sh --stage all` + smoke overrides (200 steps) | PESQ 2.078 / STOI 0.917 / SI-SDRi 7.69 | **SMOKE** |
+
 ## SS — Source Separation
 
 **What it measures.** SS separates a 2-speaker mixture into its two source

@@ -488,6 +488,12 @@ Table I). WavLM Base = 4.69 %, WavLM Large = 3.77 %. Lower is better.
 **Verification status.** Commands verified against s3prl code + benchmark papers
 (R1 audit, 2026-07-17); dry-run tested; not yet executed on data in this repo.
 
+### Executed runs
+
+| Date | Upstream | Command (key args) | Metric | Label |
+|---|---|---|---|---|
+| 2026-07-19 | wavlm_base_plus | `run_wavlm_asv.sh` + smoke overrides (300 steps, save_step 150; eval = test_expdir loop over states-150/300) | best EER 0.1607 (16.07 %) | **SMOKE** |
+
 ## SD — Speaker Diarization
 
 **What it measures.** SD labels *who speaks when* in a 2-speaker mixture. On
