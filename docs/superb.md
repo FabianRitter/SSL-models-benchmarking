@@ -72,6 +72,8 @@ Table I). WavLM Base = 4.84 %, WavLM Large = 3.06 %.
 > reduced `num_workers` are smoke-only knobs; the full-run command above sets
 > none of them (full test set, config-default workers).
 
+| 2026-07-20 | wavlm_base_plus | `run_wavlm_pr.sh` default config | test **PER 4.54 %** | **FULL** (ref 3.92) |
+
 ## ASR — Automatic Speech Recognition
 
 **What it measures.** Frame-level acoustic modelling: the frozen WavLM features are
@@ -351,6 +353,8 @@ as PBS job 193842 (dev, layer 6), MTWV pending queue.
 
 > **Scoring requires `java`** (the dataset's NIST jar) — plus optional gnuplot/ps2pdf for DET plots. On clusters where compute nodes lack java, run the DTW on GPU nodes and re-run `score-TWV-Cnxe.sh` on a login node against the produced stdlists (the wrapper prints NA rather than fabricating a value when the scorer is unavailable).
 
+| 2026-07-20 | wavlm_base_plus | full protocol: 13 layers × dev+test DTW, scorer on login node | best dev layer **12** (dev 0.0801) → **test MTWV 0.0959** | **FULL** (ref 0.0988) |
+
 ## SID — Speaker Identification
 
 **What it measures.** Whether the frozen WavLM Base+ representation linearly separates
@@ -444,6 +448,10 @@ barely-trained pipeline check (chance ≈ 1/1251 = 0.08 %), **not** a benchmark 
 restricts in-training eval to `["dev"]` to save time; the final evaluate stage still scores the full
 test split. Wall time was **5.5 min** (train ~1.5 min + dev eval ~1.8 min + test eval ~2 min), on an
 H100 shared with sibling smoke jobs; the ~2.8 min path-cache build was done once beforehand.
+
+> **FULL-run note (2026-07-20):** default-config run reached **72.12 %** vs the paper's 89.42. The WavLM
+> paper tunes the learning rate per task (SUPERB constrained track allows lr search); s3prl's shipped
+> voxceleb1 config keeps one default lr. An lr-tuned rerun is queued; both numbers will be reported.
 
 ## ASV — Automatic Speaker Verification
 
@@ -781,6 +789,8 @@ and the two-metric extraction are all confirmed against real data. The full
 > comparable. `evaluate_ratio` is a smoke-only knob; the full-run command above
 > sets none of the shrink overrides.
 
+| 2026-07-20 | wavlm_base_plus | `run_wavlm_sf.sh` default config | **slot_type_f1 90.37 / slot_value_cer 21.42** | **FULL** (ref 90.58 / 21.20) |
+
 ## ER — Emotion Recognition (IEMOCAP, 5-fold)
 
 **What it measures.** Whether the frozen WavLM Base+ representation carries enough
@@ -860,3 +870,5 @@ number (chance on 4 balanced classes ≈ 25 %; it already clears chance after 20
 confirming the head learns). Wall time was **~14 min 33 s** (start 06:10:48 → end 06:25:21)
 including WavLM download reuse, data preload, 200 training steps and the separate evaluate
 pass, on an H100 shared with four sibling smoke jobs.
+
+| 2026-07-20 | wavlm_base_plus | 5 per-fold FULL jobs (`--fold foldN`, default config) | mean acc **68.35 %** (folds 66.73/69.99/67.33/70.51/67.20) | **FULL** (ref 68.65) |

@@ -280,8 +280,10 @@ There is **no dev-best checkpoint** (save_names=[]); the runner saves
 written by the runner's **in-training evaluation** (its `eval_dataloaders`
 include `test`), so `--step` must be a step at which that eval ran — i.e. a
 multiple of `eval_step`; the default `10000` (eval_step `1000`) qualifies. The
-`evaluate` stage's own `-m evaluate` pass runs with global_step 0 and writes to
-`.../0/test/hdf5`, so decode always reads the training-time `<step>` dump.
+wrapper's `evaluate` stage decodes that `<step>` dump **directly** — it does not
+run a separate `-m evaluate` pass (a standalone `-m evaluate` writes to
+`.../0/test/hdf5` with global_step 0, and its fresh WavLM re-extraction of the
+test set can stall for hours on a contended node, so it is pure waste here).
 (evaluate.py scores only files matching `*300??*`, the 25×4 eval utterances, so
 the dev features co-dumped at each `eval_step` do not affect MCD.)
 
