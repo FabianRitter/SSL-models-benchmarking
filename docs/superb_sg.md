@@ -220,6 +220,19 @@ Resolved versions: `parallel-wavegan 0.6.1, fastdtw 0.3.4, pyworld 0.3.5,
 pysptk 1.0.1, jiwer 3.1.0, resemblyzer 0.1.4` (+ `webrtcvad, rapidfuzz, kaldiio`;
 `setuptools 80.x`). torch/numpy/torchaudio untouched.
 
+**scipy ≥ 1.13 (vocoder decode).** ParallelWaveGAN's `pqmf.py` does
+`from scipy.signal import kaiser`, a top-level alias **removed in scipy 1.13**
+(now `scipy.signal.windows.kaiser`); vocoder decoding `ImportError`s on newer
+scipy (this env ships scipy 1.15). A VC-only env can just `pip install
+"scipy<1.13"`. To keep a shared modern-scipy env, restore the alias at
+interpreter startup via a `sitecustomize.py` on `sys.path`:
+
+```python
+import scipy.signal, scipy.signal.windows
+if not hasattr(scipy.signal, "kaiser"):
+    scipy.signal.kaiser = scipy.signal.windows.kaiser
+```
+
 **Vocoder download (gdown ≥ 5).** The recipe's `vocoder_download.sh` calls
 `gdown --id <ID>`, a flag **removed in gdown ≥ 5** — it fails silently and leaves
 empty vocoder dirs. The wrapper's `--stage vocoder` was patched to invoke gdown

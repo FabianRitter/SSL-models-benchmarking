@@ -24,6 +24,7 @@ verified. To produce real benchmark numbers, run each script with its default se
 | SUPERB-SG | SS (Source Separation) | SI-SDRi dB ↑ | DOCUMENTED (dry-run only; not executed) | ~10.45 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/ss/wavlm_base_plus_ss_eval.log |
 | SUPERB-SG | VC a2o (Voice Conversion) | MCD dB ↓ | DOCUMENTED (dry-run only; not executed) | ~7.22 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/vc_a2o/wavlm_base_plus_vc_<spk>_decode.log |
 | SUPERB-SG | ST (Speech Translation) | BLEU ↑ | DOCUMENTED (dry-run only; not executed) | ~20.01 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/st/wavlm_base_plus_st_eval.log |
+| ML-SUPERB 1.0 | mono10min xty (full track) | CER ↓ | **62.1 (FULL**, recipe-default schedule, 20 min on 1×H100, 2026-07-19) | no published WavLM row (sanity band only) | logs/ml_superb/mono10min_xty.log |
 | ML-SUPERB 1.0 | mono 10min (`--lang xty`) | CER % ↓ | _pending harvest_ — **FULL run of this track** (500×30 iters, not reduced) submitted as PBS **193839** (walltime 06:00) | no WavLM row exists; HuBERT-Base README band eng1 33.8 / deu1 35.1 / jpn 20.6 (10min) | **SUBMITTED / QUEUED** (2026-07-19) · `logs/ml_superb/mlsuperb1_mono10min_xty_smoke.log` |
 | ML-SUPERB 1.0 | multi 10min ASR | CER % ↓ (macro, trained split) | _pending_ (~12–24 h/H100) | no WavLM row; band ≈ 20–40 CER (HuBERT-Base class) | **DOCUMENTED** · `logs/ml_superb/mlsuperb1_multi10min.log` |
 | ML-SUPERB 1.0 | multi 1h ASR | CER % ↓ (macro, trained split) | _pending_ (~1.5–2.5 days/H100) | no WavLM row; band ≈ HuBERT-Base 1h (eng1 26.7 / deu1 30.2) | **DOCUMENTED** · `logs/ml_superb/mlsuperb1_multi1h.log` |
@@ -35,4 +36,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled from per-task verification reports; last update 2026-07-19 (KS FULL, SE + ASV smokes harvested)._
+_Assembled from per-task verification reports; last update 2026-07-19 (ML-SUPERB mono10min xty FULL: CER 62.1)._
