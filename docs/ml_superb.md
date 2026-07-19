@@ -160,6 +160,38 @@ trained with **CTC** (greedy decode, **no language model**).
 > what the recipe README allows ("only the frontend/learning rate can be changed for the
 > benchmark").
 
+# ML-SUPERB (1.0 and 2.0) — WavLM Base+
+
+ML-SUPERB is the **multilingual** extension of SUPERB: instead of English-only tasks, a
+**frozen** self-supervised (SSL) model is probed on speech recognition and language ID across
+~143 languages, using a tiny per-language budget (10 minutes or 1 hour of training audio). As in
+SUPERB, only a small head is trained on top of the frozen features, so the score reflects the
+*representation quality* of the SSL model — here, **WavLM Base+**.
+
+Both benchmarks are implemented as **ESPnet recipes** (not s3prl `run_downstream.py`). The SSL
+model is loaded as an ESPnet `frontend: s3prl`, its layers are weighted-summed (the only learnable
+part of the featuriser), fed through a small linear pre-encoder and a 2-layer Transformer, and
+trained with **CTC** (greedy decode, **no language model**).
+
+| | ML-SUPERB 1.0 | ML-SUPERB 2.0 |
+|---|---|---|
+| Recipe | `egs2/ml_superb/asr1` | `egs2/ml_superb2/asr1` |
+| Paper | Interspeech 2023 (arXiv:2305.10615) + ASRU 2023 adapters (arXiv:2310.05513) | Interspeech 2024 (arXiv:2406.08641) |
+| What it is here | The full multi-track benchmark (mono ASR, multi ASR, LID, joint) | The 2024 **Challenge baseline** only (one config, one split) |
+| Baseline SSL in-repo | HuBERT-Large / fbank examples | Frozen **MMS-1B** |
+| Data | **Manual** download (30.3 GB zip), set `MLSUPERB=` | **Auto** download from Hugging Face (~15.5 GB) |
+| Metric(s) | CER (PER for cmn/jpn), LID accuracy % | Challenge scorer: Standard CER, LID, Worst-15 CER, CER StdDev, Dialect CER, Dialect LID |
+| Scoring tool | `sclite` (SCTK) | custom `jiwer`-based `local/score.py` |
+| Wrapper | `scripts/ml_superb/run_wavlm_mlsuperb1.sh` | `scripts/ml_superb/run_wavlm_mlsuperb2.sh` |
+
+> **In-fork change (spec-sanctioned).** WavLM configs do not exist upstream. They were added on
+> the ESPnet fork branch **`ml-superb-wavlm`** (`FabianRitter/espnet`, commit **`fd896ff`**). The
+> meta-repo submodule `external/espnet` must be pinned to that commit before the wrappers can find
+> the configs. Each config is a **verbatim copy** of an existing `train_asr_s3prl_*` /
+> `train_mms_baseline` template with only the SSL frontend swapped (2–3 lines), which is exactly
+> what the recipe README allows ("only the frontend/learning rate can be changed for the
+> benchmark").
+
 ## 1. Track taxonomy — what each measures and which command runs it
 
 **ML-SUPERB 1.0** (`egs2/ml_superb/asr1`) implements four tracks; our wrapper exposes the two ASR
@@ -290,15 +322,16 @@ reproduce** — only a **plausibility band**.
   the parser). The 2.0 wrapper gained `--asr-args` + `--` passthroughs to cap a SMOKE run (commit
   `eb898b4`). Mono data-prep re-verified post-fix (train/dev/test_10min_xty = 104/99/93 utts). No cluster
   paths in committed files. **Verified (mono path corrected).**
-- **Training** — first runs **submitted to the cluster (2026-07-19)**, awaiting scheduling. ML-SUPERB
-  1.0 mono 10min `--lang xty` (a genuine **FULL** run of that cheap track, 500×30 iters) = PBS **193839**
-  (walltime 06:00); ML-SUPERB 2.0 baseline **SMOKE** (capped 4000 iters, dev-only) = PBS **193844**
-  (walltime 08:00). Both use the validated condabin-PATH PBS launcher on the `ml-superb-wavlm` espnet
-  clone; both dry-run-reproduced their exact recipe command. They are **queued** behind the shared
-  account's `aiq1` cap of `max_run=2` running jobs/user (2 FULL 24h runs already occupying both slots),
-  so no metric has been harvested yet. Every metric in this doc remains an **estimate/band**, never a
-  result, until the jobs run. Executed numbers, when they land, carry `SMOKE` / `REDUCED` / `FULL` labels
-  (mono10min → FULL; 2.0 → SMOKE).
+- **Training** — first runs executed on the cluster (2026-07-19). **ML-SUPERB 1.0 mono 10min `--lang xty`
+  = DONE (FULL):** PBS **193839** ran end-to-end in ~20 min → **test CER 62.1** (dev 58.8). High CER is
+  expected (xty = very-low-resource tonal); no published WavLM ML-SUPERB number exists, so this is a
+  plausibility datapoint. **ML-SUPERB 2.0 baseline SMOKE (capped 4000 iters, dev-only) = PBS 193844
+  FAILED at data-prep** — `datasets==5.0.0` needs `torchcodec` to decode the HF audio column, so
+  `download.py`'s `ds.map(save_audio_to_disk)` materialized **zero** wavs while `wav.scp` referenced
+  ~154k files → stage-3 `format_wav_scp` `LibsndfileError`. Recovery: the audio bytes are already 16 kHz
+  RIFF/WAVE, so raw_audio was re-materialized on the login node by writing the bytes verbatim (no
+  torchcodec, no re-download), then the capped smoke was resubmitted from the post-materialization stage.
+  Executed numbers carry `SMOKE` / `REDUCED` / `FULL` labels (mono10min → FULL; 2.0 → SMOKE).
 
 # Running ML-SUPERB 1.0 (WavLM Base+)
 
@@ -326,14 +359,13 @@ frozen WavLM Base+ checkpoint (~0.4 GB) auto-downloads to `<recipe>/hub` on firs
 Always try `--dry-run` first — it prints the precise `run.sh` / `run_multi.sh` command and the
 `MLSUPERB=` edit, without touching anything.
 
-> **Executed-run status (2026-07-19).** The mono10min `--lang xty` smoke was **submitted** as PBS job
-> **193839** (walltime 06:00) on the staged 7th-version corpus
-> (`$WS/datasets_staging/mlsuperb/seventh_version_unpacked`, layout verified). It is a genuine **FULL**
-> run of this track (500×30 iters — cheap enough not to cap). It is **queued** behind the shared
-> account's `aiq1` cap of 2 running jobs/user; no CER harvested yet. Harvest path is in "Read the result"
-> below. On the cluster, drive the wrapper through the validated PBS launcher (`runs/pbs/mlsuperb1_mono10min.pbs`)
-> with `ESPNET_ROOT=$WS/upstream/espnet` and `SSL_BENCH_ESPNET_ENV=$WS/envs/ssl-bench-espnet`; the espnet
-> clone must be on branch `ml-superb-wavlm`.
+> **Executed-run status (2026-07-19) — DONE, FULL.** The mono10min `--lang xty` run (PBS **193839**,
+> validated launcher `runs/pbs/mlsuperb1_mono10min.pbs` with `ESPNET_ROOT`/`SSL_BENCH_ESPNET_ENV`, espnet
+> clone on `ml-superb-wavlm`) ran end-to-end (stages 1–13) in **~20 min wall** on the staged 7th-version
+> corpus. It is a genuine **FULL** run of this track (500×30 iters). **Test CER = 62.1** (test_10min_xty;
+> dev 58.8) — high, as expected for frozen WavLM Base+ on 10 min of a very-low-resource tonal language.
+> Actual score files (note: asr.sh prepends `asr_` to the tag and the decode dir has **no** `.pth`):
+> `exp/asr_train_asr_s3prl_wavlm_single_xty_10min/decode_asr_asr_model_valid.loss.ave/test_10min_xty/score_cer/result.txt`.
 
 ## Cheapest real run — monolingual 10-min, one language (smoke target)
 

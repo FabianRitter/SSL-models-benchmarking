@@ -535,6 +535,15 @@ edit the s3prl clone, the wrapper writes a **patched copy** of `score.sh` into
 `--dscore-dir /path/to/dscore`. (Manual alternative: edit that one line in your
 own copy of `score.sh`.)
 
+**⚠ dscore + modern NumPy (must handle).** `ftshijt/dscore` predates NumPy 1.24
+and uses the removed alias `np.int` (`scorelib/metrics.py:63`), which raises
+`AttributeError: module 'numpy' has no attribute 'int'` on NumPy ≥ 1.24 (our env
+has NumPy 2.2.6). `score.sh` runs dscore with `2>/dev/null || exit`, so this
+surfaces only as the wrapper printing `could not parse DER` (the crash is
+silent). **Fix in your dscore clone:** change that one line to `dtype=np.int64`
+(behaviour-preserving), or pin `numpy<1.24`. This is an upstream-dscore issue,
+not an s3prl or wrapper bug — public users on a modern env hit it too.
+
 **Run it.**
 ```bash
 bash scripts/superb/run_wavlm_sd.sh --dscore-dir /path/to/dscore \
@@ -560,7 +569,18 @@ Data generation (Libri2Mix `max`) itself produces tens of GB and takes a while.
 Table I). WavLM Base = 4.55 %, WavLM Large = 3.24 %. Lower is better.
 
 **Verification status.** Commands verified against s3prl code + benchmark papers
-(R1 audit, 2026-07-17); dry-run tested; not yet executed on data in this repo.
+(R1 audit, 2026-07-17); dry-run tested; **SMOKE-executed end-to-end** on
+locally-generated Libri2Mix (2026-07-19) — train → RTTM inference → dscore.
+
+### Executed runs
+| Date | Config | Steps | Metric | Label | Reference |
+|---|---|---|---|---|---|
+| 2026-07-19 | WavLM Base+, frozen | 200 (of 30000) | **DER 6.94 %** | SMOKE | 3.50 % (paper, full) |
+
+- Command (cluster): `bash scripts/superb/run_wavlm_sd.sh --data-root <gen>/diarization_data --dscore-dir <clone>/dscore --exp-name smoke_sd --extra-override "config.runner.total_steps=200,,config.runner.log_step=20,,config.runner.eval_step=100,,config.runner.save_step=100"`.
+- Throughput: **~0.82 s/optimizer-step** on one H100 (frozen Base+, grad_accum=4, fixed 2000-frame chunks). Full 30000-step run projects to **~7 h** train + < 5 min infer + ~2–3 min dscore sweep → **fits the 24 h walltime comfortably**.
+- The 200-step DER (6.94 %) is a pipeline-sanity number, not a result; DER falls from ~12 % (worst sweep config) to 6.94 % (best: median 11, threshold 0.6) even undertrained. The wrapper reports the lowest DER across the median∈{1,11} × threshold∈{0.3..0.7} sweep.
+- Data generated locally: Libri2Mix `wav16k/max` (mix_both), 31 GB; SD Kaldi dirs train/dev/test = 13900/3000/3000 mixtures.
 
 ## IC — Intent Classification
 

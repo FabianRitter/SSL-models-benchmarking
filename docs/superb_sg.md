@@ -142,6 +142,19 @@ This yields `.../Libri2Mix/wav16k/min/{train-100,dev_1000,test}` (the default
 "simulated from LibriSpeech + WHAM! noise", but the shipped recipe separates
 `mix_clean` (no noise); SI-SDRi is the comparable metric regardless.
 
+**⚠ `subsample.py` hard-codes a 6-cond list (must handle for mix_clean-only
+generation).** `downstream/separation_stft/scripts/LibriMix/subsample.py`
+iterates a fixed `["mix_both","mix_clean","mix_single","noise","s1","s2"]` and
+`os.makedirs`/reads `wav.scp` for each. When you generate **`mix_clean` only**
+(the SUPERB-SG recipe), the `mix_both`/`mix_single` dirs never exist, so it
+crashes on the first missing cond (the earlier `data_prepare.py` step already
+correctly skips absent conds; only `subsample.py` assumes all six). **Fix
+without touching s3prl source:** run a *patched copy* of `subsample.py` whose
+cond list is `["mix_clean","noise","s1","s2"]`. Do **not** edit the clone. (A
+crashed original run can also leave a stale, wav.scp-less `dev_1000/mix_both/`
+behind — delete it; the loader reads only `src+tgt` = `mix_clean,s1,s2`, but a
+half-written dir is confusing.)
+
 **Run it.**
 ```bash
 bash scripts/superb_sg/run_wavlm_ss.sh --exp-name wavlm_base_plus_ss
@@ -166,7 +179,18 @@ it. Ballpark from the paper's best (**HuBERT Large**): **SI-SDRi ≈ 10.45 dB**
 (arXiv:2203.06849). Label any run "reference: leaderboard (not fetched)".
 
 **Verification status.** Commands verified against s3prl code + benchmark papers
-(R1 audit, 2026-07-17); dry-run tested; not yet executed on data in this repo.
+(R1 audit, 2026-07-17); dry-run tested; **SMOKE-executed end-to-end** on
+locally-generated Libri2Mix (2026-07-19) — train → evaluate (SI-SDRi/STOI/PESQ).
+
+### Executed runs
+| Date | Config | Steps | Metric | Label | Reference |
+|---|---|---|---|---|---|
+| 2026-07-19 | WavLM Base+, frozen | 200 (of 150000) | **SI-SDRi 3.88 dB** (stoi 0.77, pesq 1.18) | SMOKE | ~10.45 dB (HuBERT-L ballpark; WavLM row not fetched) |
+
+- Command (cluster): `bash scripts/superb_sg/run_wavlm_ss.sh --data-root <gen>/ss_prepared/Libri2Mix/wav16k/min --exp-name smoke_ss --extra-override "config.runner.total_steps=200,,config.runner.log_step=20,,config.runner.eval_step=100,,config.runner.save_step=100"`.
+- Throughput: **~2.76 s/optimizer-step** on one H100 (frozen Base+, batch 8, grad_accum=1, full ~10 s utterances — no chunking, unlike SD). Test eval over 3000 utts took **~36 min** (PESQ/STOI dominate).
+- **⚠ Full-run walltime — exceeds the 24 h cap.** At the measured throughput, the full 150000-step run projects to **~60–115 h (≈ 2.5–5 days)** depending on how much the smoke's frequent-eval overhead inflates the per-step time (full-run `eval_step=2000` vs smoke's 100). This does **not** fit one 24 h PBS job: run it as a **checkpoint-resumed chain** (config `save_step=10000`, `max_keep` high; resume from `result/downstream/<exp>/states-<step>.ckpt`), i.e. 3–5 sequential jobs. R1's "~1 day" estimate is optimistic vs the H100 smoke measurement; SS trains on full-length utterances, which is the cost driver.
+- The 200-step SI-SDRi (3.88 dB) is a pipeline-sanity number, not a result. Data generated locally: Libri2Mix `wav16k/min` (mix_clean), 23 GB; train-100/dev_1000/test = 13900/1000/3000 mixtures.
 
 ## VC — Voice Conversion (any-to-one)
 
