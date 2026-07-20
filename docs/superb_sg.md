@@ -110,6 +110,8 @@ WavLM leaderboard row not fetched) is for the FULL run. Harvest: read
 |---|---|---|---|---|
 | 2026-07-19 | wavlm_base_plus | `run_wavlm_se.sh --stage all` + smoke overrides (200 steps) | PESQ 2.078 / STOI 0.917 / SI-SDRi 7.69 | **SMOKE** |
 
+| 2026-07-20 | wavlm_base_plus | `run_wavlm_se.sh` default config (150k steps) | **PESQ 2.616 / STOI 0.940 / SI-SDRi 9.82 dB** | **FULL** (HuBERT-L ballpark 2.64/94.2 — WavLM Base+ matches it) |
+
 ## SS — Source Separation
 
 **What it measures.** SS separates a 2-speaker mixture into its two source

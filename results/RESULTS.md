@@ -20,7 +20,7 @@ verified. To produce real benchmark numbers, run each script with its default se
 | SUPERB | SF (End-to-end Slot Filling) | slot_type_f1 % ↑ | **F1 90.37 / CER 21.42 (FULL**, default config, 2026-07-20) | 90.58 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | SF (End-to-end Slot Filling) | slot_value_cer % ↓ | _pending full run_ (smoke OK: 55.07 % @3 000 steps, **SMOKE**) | 21.20 % (WavLM Base+, paper Table I) | logs/superb/sf/wavlm_base_plus_sf_full_eval.log |
 | SUPERB | ER | Acc % ↑ | **68.35 mean (FULL**, 5 folds: 66.73/69.99/67.33/70.51/67.20, 2026-07-20) | 68.65 (WavLM Base+, WavLM paper Table I; 5-fold mean) | logs/superb/er/smoke_er_fold1_eval.log |
-| SUPERB-SG | SE (Speech Enhancement) | PESQ ↑ / STOI ↑ / SI-SDRi ↑ | **SMOKE-verified** (200 steps, 2026-07-19: PESQ 2.08 / STOI 0.917 / SI-SDRi 7.69 — pipeline proof, not a result; job 6m47s) | PESQ ~2.64 / STOI ~94.2 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/se/wavlm_base_plus_se_smoke_eval.log |
+| SUPERB-SG | SE (Speech Enhancement) | PESQ ↑ / STOI ↑ / SI-SDRi ↑ | **PESQ 2.616 / STOI 0.940 / SI-SDRi 9.82 (FULL**, default config, 6h23m on 1×H100, 2026-07-20) | PESQ ~2.64 / STOI ~94.2 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/se/wavlm_base_plus_se_smoke_eval.log |
 | SUPERB-SG | SS (Source Separation) | SI-SDRi dB ↑ | SMOKE 3.88 dB (200/150000 steps — sanity only) | ~10.45 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/ss/smoke_ss_eval.log |
 | SUPERB-SG | VC a2o (Voice Conversion) | MCD dB ↓ | **SMOKE-verified** (500-step TEF1 + full vocoder/objective eval: MCD 11.35 — pipeline proof, model undertrained by design, 2026-07-20) | ~7.22 dB (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/vc_a2o/wavlm_base_plus_vc_<spk>_decode.log |
 | SUPERB-SG | ST (Speech Translation) | BLEU ↑ | DOCUMENTED (dry-run only; not executed) | ~20.01 (HuBERT-Large ballpark; WavLM leaderboard row not fetched) | logs/superb_sg/st/wavlm_base_plus_st_eval.log |
@@ -37,4 +37,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled 2026-07-20: ML-SUPERB 1.0 mono10min track COMPLETE — all 13 languages, first WavLM numbers for this benchmark._
+_Assembled 2026-07-20: SE FULL lands at the HuBERT-Large ballpark — first SUPERB-SG FULL result._
