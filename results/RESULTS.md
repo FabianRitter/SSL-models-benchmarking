@@ -29,7 +29,7 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 1.0 | multi 10min ASR | CER % ↓ (macro, trained split) | _pending_ (~12–24 h/H100) | no WavLM row; band ≈ 20–40 CER (HuBERT-Base class) | **DOCUMENTED** · `logs/ml_superb/mlsuperb1_multi10min.log` |
 | ML-SUPERB 1.0 | multi 1h ASR | CER % ↓ (macro, trained split) | _pending_ (~1.5–2.5 days/H100) | no WavLM row; band ≈ HuBERT-Base 1h (eng1 26.7 / deu1 30.2) | **DOCUMENTED** · `logs/ml_superb/mlsuperb1_multi1h.log` |
 | ML-SUPERB 1.0 | LID 10min | LID acc % ↑ | _pending_ (~12–24 h/H100) | no WavLM row | **DOCUMENTED** (recipe-native `run_multi.sh … --only_lid true`) |
-| ML-SUPERB 1.0 | mono10min sweep (8/13 langs) | CER ↓ | **FULL per-language: deu1 31.5, swe 33.0, rus 34.8, deu2 37.2, swa 39.6, fra1 49.1, fra2 51.4, xty 62.1** (eng×3/cmn/jpn rerun pending — recipe prep bugs) | no published WavLM row | logs/ml_superb/mono10min_*.log |
+| ML-SUPERB 1.0 | mono10min sweep (ALL 13 langs) | CER ↓ | **FULL per-language CER: eng1 31.2, deu1 31.5, swe 33.0, eng3 33.2, rus 34.8, deu2 37.2, swa 39.6, eng2 41.2, fra1 49.1, fra2 51.4, xty 62.1; PER: jpn 17.8, cmn 42.8** — complete mono10min track | no published WavLM row | logs/ml_superb/mono10min_*.log |
 | ML-SUPERB 2.0 | Standard CER ↓ | _pending harvest_ (PBS 193844) | 24.0 | **SUBMITTED / QUEUED** · `logs/ml_superb/mlsuperb2_baseline_smoke.log` |
 | ML-SUPERB 2.0 | Standard LID % ↑ | _pending harvest_ | 74.0 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Worst-15 CER ↓ | _pending harvest_ | 71.0 | **SUBMITTED / QUEUED** |
@@ -37,4 +37,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled 2026-07-20: ASR FULL 5.57 WER (ref 5.59, exact); 9 SUPERB-family FULL results now recorded._
+_Assembled 2026-07-20: ML-SUPERB 1.0 mono10min track COMPLETE — all 13 languages, first WavLM numbers for this benchmark._
