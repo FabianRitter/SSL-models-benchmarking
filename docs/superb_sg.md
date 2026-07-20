@@ -306,7 +306,7 @@ run "reference: leaderboard (not fetched)".
 **Verification status.** Commands verified against s3prl code + benchmark papers
 (R1 audit, 2026-07-17); dry-run tested; **SMOKE-executed end-to-end on VCC2020 in
 this repo** (TEF1, 500 steps → in-training test dump → PWG vocoder decode →
-objective eval → MCD; 2026-07-19).
+objective eval → MCD; PBS job 193964, Exit 0, 2026-07-19).
 
 ### Executed runs
 
@@ -316,22 +316,23 @@ objective eval → MCD; 2026-07-19).
 
 SMOKE is a pipeline proof only: with a 4000-step warmup a 500-step model is
 essentially untrained, so MCD sits far above the ~7.22 dB reference (expected —
-not a benchmark number). Full vocoder synthesis + objective eval ran over all 100
-scored utterances.
+do not read as a benchmark). Full vocoder synthesis + objective eval ran over all
+100 scored utterances.
 
 **Measured stage costs** (500-step TEF1, one H100, under heavy node contention;
 job walltime 7 min 28 s):
 - **Train + one in-training eval** (dev+test feature dump): ~6 min — 500 steps at
-  ~0.4 s/step steady-state, plus ~40 s for the step-500 dump.
+  ~0.4 s/step steady-state, plus ~40 s for the step-500 dev+test dump.
 - **`decode.sh`: ~77 s total** — normalize 110 hdf5 ~6 s; PWG synthesis of 110
   utts ~5 s (RTF 0.011); objective eval (Resemblyzer d-vector ASV +
   wav2vec2-large ASR + MCD/f0 over the 100 scored utts) ~65 s.
 
-Decode is cheap and bounded; **training dominates** the cost.
+Decode is cheap and bounded; **training dominates**. The earlier walltime kill was
+a now-removed redundant `-m evaluate` WavLM re-extraction, not decode.
 
 **Full-run projection.** ~0.4 s/step ⇒ 10 000 steps ≈ **1–1.5 h/speaker**; the
 default `eval_step=1000` adds 10 in-training evals ≈ ~7 min/speaker; decode ≈
-~1–2 min/speaker. Four speakers + decode ≈ **~5–7 h sequential** → a single
+~1–2 min/speaker. Four speakers + decode ≈ **~5–7 h sequential**, so a single
 `--trgspk all` job at `walltime=12:00:00` has ~2× headroom. GPU memory is small
 (Taco2-AR acoustic model; well under the ~15 GB the inventory estimated).
 

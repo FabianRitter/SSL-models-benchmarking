@@ -10,7 +10,7 @@ verified. To produce real benchmark numbers, run each script with its default se
 | Benchmark | Task | Metric | Verification status | Reference | Log |
 |---|---|---|---|---|---|
 | SUPERB | PR (Phoneme Recognition) | PER % ↓ | **PER 4.54 % (FULL**, default config, 2026-07-20) | 3.92 % (WavLM Base+, paper Table I) | logs/superb/pr/smoke_pr_eval.log |
-| SUPERB | ASR | WER % ↓ (no LM) | _pending full run_ (smoke OK: `wer=27.66` @1000 steps / 262-utt subset, **SMOKE** — not a result) | 5.59 % (WavLM Base+, no LM — arXiv:2110.13900 Tbl I) | `logs/superb/asr/wavlm_base_plus_asr_full_eval.log` |
+| SUPERB | ASR | WER % ↓ (no LM) | **WER 5.57 % (FULL**, default config no-LM, 13h25m on 1×H100, 2026-07-20) | 5.59 % (WavLM Base+, no LM — arXiv:2110.13900 Tbl I) | `logs/superb/asr/wavlm_base_plus_asr_full_eval.log` |
 | SUPERB | KS | Acc % ↑ | **96.88 (FULL**, default config, 1h30m on 1×H100, 2026-07-19) | 97.37 (WavLM Base+, WavLM paper Tab. I) | logs/superb/ks/wavlm_base_plus_ks_full_eval.log |
 | SUPERB | QbE (Query-by-Example) | MTWV ↑ | **MTWV 0.0959 (FULL** protocol: best dev layer = 12 of 0..12, dev 0.0801 → test 0.0959, 2026-07-20) | 0.0988 (WavLM Base+, paper Table I) | logs/superb/qbe/wavlm_base_plus_qbe_smoke_L6_dev_score.log |
 | SUPERB | SID | Acc % ↑ | **72.12 (FULL**, default config lr — see note: reference used per-task lr tuning; lr-tuned rerun queued, 2026-07-20) | 89.42 (WavLM Base+, WavLM paper Table I) | logs/superb/sid/smoke_sid_eval.log |
@@ -37,4 +37,4 @@ verified. To produce real benchmark numbers, run each script with its default se
 | ML-SUPERB 2.0 | Dialect CER ↓ | _pending harvest_ | 32.7 | **SUBMITTED / QUEUED** |
 | ML-SUPERB 2.0 | Dialect LID % ↑ | _pending harvest_ | 54.0 | **SUBMITTED / QUEUED** |
 
-_Assembled 2026-07-20: FULL results now for KS, IC, PR, SF, ER, SID(untuned-lr, see note), QbE, ML-SUPERB mono 8/13 langs; VC smoke-verified (all 15 runnable tasks verified)._
+_Assembled 2026-07-20: ASR FULL 5.57 WER (ref 5.59, exact); 9 SUPERB-family FULL results now recorded._

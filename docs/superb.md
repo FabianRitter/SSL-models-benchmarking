@@ -157,6 +157,8 @@ on `test-clean` — i.e. the wrapper prints `RESULT superb asr wer=5.59`. (Base 
 > so the checkpoint is never written and the evaluate stage has nothing to score. Use **≥ ~500
 > steps** (and enough that dev WER drops below 100) for a self-checking smoke.
 
+| 2026-07-20 | wavlm_base_plus | `run_wavlm_asr.sh` default config (200k steps, no LM) | `test-clean WER = 5.57 %` | **FULL** (ref 5.59 — exact reproduction) |
+
 ## KS — Keyword Spotting
 
 **What it measures.** KS asks the model to classify a 1-second utterance into one of

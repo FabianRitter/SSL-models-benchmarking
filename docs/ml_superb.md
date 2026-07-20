@@ -224,6 +224,38 @@ trained with **CTC** (greedy decode, **no language model**).
 > what the recipe README allows ("only the frontend/learning rate can be changed for the
 > benchmark").
 
+# ML-SUPERB (1.0 and 2.0) — WavLM Base+
+
+ML-SUPERB is the **multilingual** extension of SUPERB: instead of English-only tasks, a
+**frozen** self-supervised (SSL) model is probed on speech recognition and language ID across
+~143 languages, using a tiny per-language budget (10 minutes or 1 hour of training audio). As in
+SUPERB, only a small head is trained on top of the frozen features, so the score reflects the
+*representation quality* of the SSL model — here, **WavLM Base+**.
+
+Both benchmarks are implemented as **ESPnet recipes** (not s3prl `run_downstream.py`). The SSL
+model is loaded as an ESPnet `frontend: s3prl`, its layers are weighted-summed (the only learnable
+part of the featuriser), fed through a small linear pre-encoder and a 2-layer Transformer, and
+trained with **CTC** (greedy decode, **no language model**).
+
+| | ML-SUPERB 1.0 | ML-SUPERB 2.0 |
+|---|---|---|
+| Recipe | `egs2/ml_superb/asr1` | `egs2/ml_superb2/asr1` |
+| Paper | Interspeech 2023 (arXiv:2305.10615) + ASRU 2023 adapters (arXiv:2310.05513) | Interspeech 2024 (arXiv:2406.08641) |
+| What it is here | The full multi-track benchmark (mono ASR, multi ASR, LID, joint) | The 2024 **Challenge baseline** only (one config, one split) |
+| Baseline SSL in-repo | HuBERT-Large / fbank examples | Frozen **MMS-1B** |
+| Data | **Manual** download (30.3 GB zip), set `MLSUPERB=` | **Auto** download from Hugging Face (~15.5 GB) |
+| Metric(s) | CER (PER for cmn/jpn), LID accuracy % | Challenge scorer: Standard CER, LID, Worst-15 CER, CER StdDev, Dialect CER, Dialect LID |
+| Scoring tool | `sclite` (SCTK) | custom `jiwer`-based `local/score.py` |
+| Wrapper | `scripts/ml_superb/run_wavlm_mlsuperb1.sh` | `scripts/ml_superb/run_wavlm_mlsuperb2.sh` |
+
+> **In-fork change (spec-sanctioned).** WavLM configs do not exist upstream. They were added on
+> the ESPnet fork branch **`ml-superb-wavlm`** (`FabianRitter/espnet`, commit **`fd896ff`**). The
+> meta-repo submodule `external/espnet` must be pinned to that commit before the wrappers can find
+> the configs. Each config is a **verbatim copy** of an existing `train_asr_s3prl_*` /
+> `train_mms_baseline` template with only the SSL frontend swapped (2–3 lines), which is exactly
+> what the recipe README allows ("only the frontend/learning rate can be changed for the
+> benchmark").
+
 ## 1. Track taxonomy — what each measures and which command runs it
 
 **ML-SUPERB 1.0** (`egs2/ml_superb/asr1`) implements four tracks; our wrapper exposes the two ASR
